@@ -21,14 +21,20 @@
   },
   "homepage": "https://github.com/BHC-ERP/bhc_admission_server#readme",
   "dependencies": {
+    "connect-mongo": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.1.5",
     "nodemon": "^3.1.11"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.10",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
