@@ -23,6 +23,7 @@
   "dependencies": {
     "connect-mongo": "^6.0.0",
     "cors": "^2.8.6",
+    "csv-parser": "^3.2.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-session": "^1.19.0",

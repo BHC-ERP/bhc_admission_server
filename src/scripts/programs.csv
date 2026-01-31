@@ -1,0 +1,79 @@
+﻿program_code,program_name,department_code,type,stream,special,program_type,shift,sanctioned_strength,show
+UG-BA-HS,B.A. History,HS,Arts,Aided,,UG,Shift-1,60,TRUE
+UG-BA-EC,B.A. Economics,EC,Arts,Aided,,UG,Shift-1,60,TRUE
+UG-BA-EG,B.A. English,EG,Arts,Aided,,UG,Shift-1,60,TRUE
+UG-BCM,B.Com.,CM,Arts,Aided,,UG,Shift-1,60,TRUE
+UG-BSC-MT,B.Sc. Mathematics,MA,Sciences,Aided,,UG,Shift-1,60,TRUE
+UG-BSC-PH,B.Sc. Physics,PH,Sciences,Aided,,UG,Shift-1,50,TRUE
+UG-BSC-CH,B.Sc. Chemistry,CH,Sciences,Aided,,UG,Shift-1,50,TRUE
+UG-BSC-BY,B.Sc. Botany,BY,Sciences,Aided,,UG,Shift-1,40,TRUE
+UG-BSC-ZY,B.Sc. Zoology,ZY,Sciences,Aided,,UG,Shift-1,36,TRUE
+UG-BSC-CS,B.Sc. Computer Science,CS,Sciences,Aided,,UG,Shift-1,60,TRUE
+UG-BA-EG,B.A. English,EG,Arts,Self Financed,,UG,Shift-1,60,TRUE
+UG-BA-EG,B.A. English,EG,Arts,Self Financed,,UG,Shift-2,60,TRUE
+UG-BA-TA,B.A. Tamil,TM,Arts,Self Financed,,UG,Shift-2,60,TRUE
+UG-BBA,B.B.A.,MS,Arts,Self Financed,AICTE,UG,Shift-1,60,TRUE
+UG-BBA,B.B.A.,MS,Arts,Self Financed,AICTE,UG,Shift-2,180,TRUE
+UG-BBA-AGH,B.B.A. Aviation and Ground Handling,MS,Arts,Self Financed,,UG,Shift-1,60,TRUE
+UG-BCA,B.C.A.,CA,Sciences,Self Financed,AICTE,UG,Shift-1,60,TRUE
+UG-BCA,B.C.A.,CA,Sciences,Self Financed,AICTE,UG,Shift-2,338,TRUE
+UG-BCM,B.Com.,CM,Arts,Self Financed,,UG,Shift-1,120,TRUE
+UG-BCM,B.Com.,CM,Arts,Self Financed,,UG,Shift-2,360,TRUE
+UG-BCM-CA,B.Com. CA,CM,Arts,Self Financed,,UG,Shift-1,120,TRUE
+UG-BCM-CA,B.Com. CA,CM,Arts,Self Financed,,UG,Shift-2,120,TRUE
+UG-BCM-IA,B.Com. IA,CM,Arts,Self Financed,,UG,Shift-1,60,TRUE
+UG-BCM-PA,B.Com. PA,CM,Arts,Self Financed,,UG,Shift-1,60,TRUE
+UG-BCM-SF,B.Com. Strategic Finance,CM,Arts,Self Financed,,UG,Shift-1,60,TRUE
+UG-BCM-BPM,B.Com. BPM,CM,Arts,Self Financed,,UG,Shift-2,60,TRUE
+UG-BCM-BA,B.Com. BA,CM,Arts,Self Financed,,UG,Shift-2,60,TRUE
+UG-BCM-FT,B.Com. FinTech,CM,Arts,Self Financed,,UG,Shift-1,40,TRUE
+UG-BSC-AMS,B.Sc. Actuarial Mathematical Science,AS,Sciences,Self Financed,,UG,Shift-2,60,TRUE
+UG-BSC-BT,B.Sc. Biotechnology,BT,Sciences,Self Financed,,UG,Shift-1,40,TRUE
+UG-BSC-BT,B.Sc. Biotechnology,BT,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSC-CH,B.Sc. Chemistry,CH,Sciences,Self Financed,,UG,Shift-1,40,TRUE
+UG-BSC-CH,B.Sc. Chemistry,CH,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSC-CS,B.Sc. Computer Science,CS,Sciences,Self Financed,,UG,Shift-1,120,TRUE
+UG-BSC-CS,B.Sc. Computer Science,CS,Sciences,Self Financed,,UG,Shift-2,420,TRUE
+UG-BSC-ES,B.Sc. Environmental Sciences,ES,Sciences,Self Financed,,UG,Shift-1,40,TRUE
+UG-BSC-MT,B.Sc. Mathematics,MA,Sciences,Self Financed,,UG,Shift-1,60,TRUE
+UG-BSC-MT,B.Sc. Mathematics,MA,Sciences,Self Financed,,UG,Shift-2,60,TRUE
+UG-BSC-ND,B.Sc. Nutrition and Dietetics,ND,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSC-PH,B.Sc. Physics,PH,Sciences,Self Financed,,UG,Shift-1,40,TRUE
+UG-BSC-PH,B.Sc. Physics,PH,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSC-ZY,B.Sc. Zoology,ZY,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSC-AN,B.Sc. Aviation,PH,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+UG-BSW,B.S.W.,SW,Arts,Self Financed,,UG,Shift-2,60,TRUE
+UG-BSC-IT,B.Sc. IT,IT,Sciences,Self Financed,,UG,Shift-1,60,TRUE
+UG-BSC-VC,B.Sc. Visual Communication,VC,Sciences,Self Financed,,UG,Shift-2,40,TRUE
+PG-MSC-BI,M.Sc. Bioinformatics,BI,Sciences,Self Financed,,UG,Shift-1,55,TRUE
+PG-MA-TA,M.A. Tamil,TM,Arts,Aided,,PG,Shift-1,40,TRUE
+PG-MA-EG,M.A. English,EG,Arts,Aided,,PG,Shift-1,35,TRUE
+PG-MSW,M.S.W.,SW,Arts,Aided,,PG,Shift-1,35,TRUE
+PG-MSC-CH,M.Sc. Chemistry,CH,Sciences,Aided,,PG,Shift-1,21,TRUE
+PG-LIB,M.Lib.I.Sc.,LS,Sciences,Aided,,PG,Shift-1,20,TRUE
+PG-MSC-MT,M.Sc. Mathematics,MA,Sciences,Aided,,PG,Shift-1,35,TRUE
+PG-MSC-ES,M.Sc. Environmental Sciences,ES,Sciences,Aided,,PG,Shift-1,24,TRUE
+PG-MA-EG,M.A. English,EG,Arts,Self Financed,,PG,Shift-1,35,TRUE
+PG-MA-EG,M.A. English,EG,Arts,Self Financed,,PG,Shift-2,35,TRUE
+PG-MA-EC,M.A. Economics,EC,Arts,Self Financed,,PG,Shift-1,35,TRUE
+PG-MA-HS,M.A. History,HS,Arts,Self Financed,,PG,Shift-1,35,TRUE
+PG-MCM,M.Com.,CM,Arts,Self Financed,,PG,Shift-1,35,TRUE
+PG-MBA,M.B.A.,MS,Arts,Self Financed,AICTE,PG,Shift-1,120,TRUE
+PG-MCA,M.C.A.,CA,Sciences,Self Financed,,PG,Shift-1,120,TRUE
+PG-MSW,M.S.W.,SW,Arts,Self Financed,,PG,Shift-1,30,TRUE
+PG-MSC-AS,M.Sc. Actuarial Science,AS,Sciences,Self Financed,,PG,Shift-2,50,TRUE
+PG-MSC-BT,M.Sc. Biotechnology,BT,Sciences,Self Financed,,PG,Shift-1,25,TRUE
+PG-MSC-BT,M.Sc. Biotechnology,BT,Sciences,Self Financed,,PG,Shift-2,25,TRUE
+PG-MSC-BY,M.Sc. Botany,BY,Sciences,Self Financed,,PG,Shift-1,25,TRUE
+PG-MSC-CH,M.Sc. Chemistry,CH,Sciences,Self Financed,,PG,Shift-2,50,TRUE
+PG-MSC-CS,M.Sc. Computer Science,CS,Sciences,Self Financed,,PG,Shift-1,50,TRUE
+PG-MSC-CS,M.Sc. Computer Science,CS,Sciences,Self Financed,,PG,Shift-2,90,TRUE
+PG-MSC-DS,M.Sc. Data Science,DS,Sciences,Self Financed,,PG,Shift-1,60,TRUE
+PG-MSC-ND,M.Sc. Food Science and Nutrition,ND,Sciences,Self Financed,,PG,Shift-2,25,TRUE
+PG-MSC-MT,M.Sc. Mathematics,MA,Sciences,Self Financed,,PG,Shift-1,35,TRUE
+PG-MSC-MT,M.Sc. Mathematics,MA,Sciences,Self Financed,,PG,Shift-2,35,TRUE
+PG-MSC-PH,M.Sc. Physics,PH,Sciences,Self Financed,,PG,Shift-1,24,TRUE
+PG-MSC-PH,M.Sc. Physics,PH,Sciences,Self Financed,,PG,Shift-2,40,TRUE
+PG-MSC-IT,M.Sc. Information Technology,IT,Sciences,Self Financed,,PG,Shift-1,40,TRUE
+PG-MSC-ZY,M.Sc. Zoology,ZY,Sciences,Self Financed,,PG,Shift-1,25,TRUE
+PG-MSC-VC,M.Sc. Visual Communication,MA,Sciences,Self Financed,,PG,Shift-1,25,TRUE
