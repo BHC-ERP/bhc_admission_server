@@ -46,11 +46,7 @@ const CandidateSchema = new mongoose.Schema({
     /* ==================== PERSONAL DETAILS ==================== */
     personal_details: {
         basic_info: {
-            name: {
-                first_name: String,
-                last_name: String,
-                full_name: String
-            },
+            name:   String ,
             gender: { type: String },
             date_of_birth: Date,
             age: Number,
@@ -280,6 +276,7 @@ const CandidateSchema = new mongoose.Schema({
             _id: false
         }]
     },
+    
 
     /* ==================== INTERVIEW ==================== */
     interview_test: {
@@ -306,7 +303,7 @@ const CandidateSchema = new mongoose.Schema({
     facilities: {
         hostel: {
             required: Boolean,
-            type: { type: String, enum: ['Boys Hostel', 'Girls Hostel'] },
+            type: { type: String  },
             allocation_status: {
                 type: String,
                 enum: ['pending', 'allocated', 'confirmed', 'cancelled']
