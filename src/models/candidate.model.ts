@@ -8,7 +8,7 @@ const CandidateSchema = new mongoose.Schema({
         required: true,
         unique: true,
         index: true
-    } ,
+    },
     academic_year: {
         type: String,
         default: "2026-2027",
@@ -46,7 +46,7 @@ const CandidateSchema = new mongoose.Schema({
     /* ==================== PERSONAL DETAILS ==================== */
     personal_details: {
         basic_info: {
-            name:   String ,
+            name: String,
             gender: { type: String },
             date_of_birth: Date,
             age: Number,
@@ -67,21 +67,30 @@ const CandidateSchema = new mongoose.Schema({
             aadhar_number: {
                 type: String,
                 match: [/^\d{12}$/, "Aadhar must be 12 digits"]
+            },
+            differently_abled: {
+                is_differently_abled: Boolean,
+                disability_type: String,
+                disability_percentage: String,
+            },
+            ex_serviceman_child: {
+                is_ex_serviceman_child: Boolean,
+                grade: String,
             }
         },
-        parents :{
-            father_name:String,
+        parents: {
+            father_name: String,
             father_mobile: Number,
-            father_occupation:String,
-            father_income:String,
-            mother_name:String,
+            father_occupation: String,
+            father_income: String,
+            mother_name: String,
             mother_mobile: Number,
-            mother_occupation:String,
-            mother_income:String,
-            guardian :{
-                is_guardian:Boolean,
-                guardian_name:String,
-                guardian_mobile:Number,
+            mother_occupation: String,
+            mother_income: String,
+            guardian: {
+                is_guardian: Boolean,
+                guardian_name: String,
+                guardian_mobile: Number,
 
 
             }
@@ -97,7 +106,8 @@ const CandidateSchema = new mongoose.Schema({
                 match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email"],
                 index: true
             }
-        }
+        },
+
     },
 
     /* ==================== ACADEMIC BACKGROUND ==================== */
@@ -257,13 +267,14 @@ const CandidateSchema = new mongoose.Schema({
             _id: false
         }]
     },
-       /* ==================== BANK DETAILS ==================== */
-     bank_details: {
-    account_holder_name: String,
-    account_number: Number,
-    bank_name: String,
-    branch: String,
-    ifsc_code: String},
+    /* ==================== BANK DETAILS ==================== */
+    bank_details: {
+        account_holder_name: String,
+        account_number: Number,
+        bank_name: String,
+        branch: String,
+        ifsc_code: String
+    },
 
     /* ==================== DOCUMENTS ==================== */
     documents: {
@@ -276,7 +287,7 @@ const CandidateSchema = new mongoose.Schema({
             _id: false
         }]
     },
-    
+
 
     /* ==================== INTERVIEW ==================== */
     interview_test: {
@@ -295,7 +306,7 @@ const CandidateSchema = new mongoose.Schema({
             _id: false
         }]
     },
-    payment:{
+    payment: {
         amount: Number,
         status: String
     },
@@ -303,7 +314,7 @@ const CandidateSchema = new mongoose.Schema({
     facilities: {
         hostel: {
             required: Boolean,
-            type: { type: String  },
+            type: { type: String },
             allocation_status: {
                 type: String,
                 enum: ['pending', 'allocated', 'confirmed', 'cancelled']

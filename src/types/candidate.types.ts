@@ -65,6 +65,15 @@ export interface BasicInfo {
   sub_caste?: string;
   blood_group?: BloodGroup;
   aadhar_number?: string;
+  differently_abled?: {
+    is_differently_abled: Boolean;
+    disability_type: String;
+    disability_percentage: String;
+  };
+  ex_serviceman_child: {
+    is_ex_serviceman_child: Boolean;
+    grade: String;
+  };
 }
 
 export interface ParentsInfo {
