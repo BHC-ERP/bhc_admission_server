@@ -6,7 +6,7 @@ const router = Router();
 router.get("/", async (req, res) => {
   const programs = await programsModel
     .find({ show: true })
-    .select("program_code program_name program_type type stream show")
+    .select("program_code program_name program_type type stream eligibility_description eligibility_subjects special show")
     .sort({ program_name: 1 })
     .lean();
 
