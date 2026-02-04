@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { signToken } from "../utils/jwt";
 import candidateModel from "../models/candidate.model";
-import programsModel from "../models/programs.model";
+import programsModel from "../models/programs.model"; 
+import { sendOtpMail } from "../utils/send_otp";
+import StaffModel from "../models/staffmaster.heber.model";
 
 const router = Router();
 
@@ -66,10 +68,7 @@ router.post("/signup", async (req, res) => {
         {
           "personal_details": {
             "basic_info": {
-              "name": {
-                "first_name": "Ravi",
-                "last_name": "M"
-              },
+              "name": "Ravi M",
               "gender": "Male",
               "date_of_birth": "2003-08-07",
               "community": "SC",
@@ -92,35 +91,33 @@ router.post("/signup", async (req, res) => {
 
     */
 
-     /* -----------PAYLOAD WITH NOT SC -----------
-        {
-          "personal_details": {
-            "basic_info": {
-              "name": {
-                "first_name": "Karthik",
-                "last_name": "R"
-              },
-              "gender": "Male",
-              "date_of_birth": "2004-05-12",
-              "community": "BC",
-              "community_number": ""
-            },
-            "contact_info": {
-              "mobile": "9123456789",
-              "email": "karthik@bhc.edu.in"
-            },
-            "application_info": {
-              "application_count": 1,
-              "application_type": "UG",
-              "program_code": [
-                "UGBAPOL"
-              ]
-            }
-          }
-        }
+    /* -----------PAYLOAD WITH NOT SC -----------
+       {
+         "personal_details": {
+           "basic_info": {
+             "name":  "karthi k"
+             },
+             "gender": "Male",
+             "date_of_birth": "2004-05-12",
+             "community": "BC",
+             "community_number": ""
+           },
+           "contact_info": {
+             "mobile": "9123456789",
+             "email": "karthik@bhc.edu.in"
+           },
+           "application_info": {
+             "application_count": 1,
+             "application_type": "UG",
+             "program_code": [
+               "UGBAPOL"
+             ]
+           }
+         }
+       }
 
 
-    */
+   */
 
     /* ---------- BASIC VALIDATION ---------- */
     if (
@@ -285,6 +282,76 @@ router.post("/signup", async (req, res) => {
     return res.status(500).json({
       message: "Internal server error"
     });
+  }
+});
+
+
+router.post("/department/login", async (req, res) => {
+  try {
+    const { college_email } = req.body;
+
+    if (!college_email) {
+      return res.status(400).json({ message: "College email is required" });
+    }
+
+    const staff = await StaffModel.findOne({ college_email });
+
+    if (!staff) {
+      return res.status(404).json({ message: "Email not registered" });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await StaffModel.updateOne(
+      { college_email },
+      {
+        $set: {
+          otp,
+          otp_expires_at: new Date(Date.now() + 5 * 60 * 1000),
+        },
+      }
+    );
+
+    await sendOtpMail(college_email, otp);
+
+    res.json({ message: "OTP sent successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/department/verify-otp", async (req, res) => {
+  try {
+    const { college_email, otp } = req.body;
+
+    if (!college_email || !otp) {
+      return res.status(400).json({ message: "Email and OTP required" });
+    }
+
+    const staff = await StaffModel.findOne({
+      college_email,
+      otp,
+      otp_expires_at: { $gt: new Date() },
+    }).select(
+      "staff_id name department_code department_name shift stream"
+    );
+
+    if (!staff) {
+      return res.status(401).json({ message: "Invalid or expired OTP" });
+    }
+
+    await StaffModel.updateOne(
+      { college_email },
+      { $unset: { otp: "", otp_expires_at: "" } }
+    );
+
+    res.json({
+      message: "Login successful",
+      staff,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
   }
 });
 

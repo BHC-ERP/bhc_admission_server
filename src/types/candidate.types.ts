@@ -49,11 +49,7 @@ export interface CandidateDocuments {
 }
 
 export interface BasicInfo {
-  name: {
-    first_name?: string;
-    last_name?: string;
-    full_name?: string;
-  };
+  name:  string;
   gender?: string;
   date_of_birth?: Date;
   age?: number;
