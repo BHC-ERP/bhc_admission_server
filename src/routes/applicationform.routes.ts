@@ -1,6 +1,7 @@
 import { Router } from "express"; 
 import collegedataModel from "../models/collegedata.model";
 import candidateModel from "../models/candidate.model";
+import casteModel from "../models/caste.model";
 
 const router = Router();
 
@@ -16,6 +17,17 @@ router.get("/college_location", async (req, res) => {
   });
 });
 
+router.get("/caste_list", async (req, res) => {
+  const caste = await casteModel
+    .find({  })
+    .select("castes") 
+    .lean();
+
+  return res.json({
+    count: caste.length,
+    caste
+  });
+});
 
 router.post("/basic_details", async (req, res) =>{
 
