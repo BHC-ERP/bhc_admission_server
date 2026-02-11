@@ -35,7 +35,8 @@ router.post("/login", async (req, res) => {
       id: candidate._id.toString(),
       registration_number: candidate.registration_number,
       role: "candidate",
-      payment_status: candidate.payment?.status || "PENDING"
+      payment_status: candidate.payment?.status || "PENDING",
+      userData : candidate.personal_details
     };
 
     /* ---------- JWT ---------- */
