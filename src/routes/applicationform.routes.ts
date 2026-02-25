@@ -12,15 +12,19 @@ import cityModel from "../models/city.model";
 const router = Router();
 
 // Configure S3 Client
+if (!process.env.AWS_REGION || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  throw new Error("Missing required AWS environment variables: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY");
+}
+
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: process.env.AWS_REGION,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "AKIATFX3NIVMYOMFIQBF",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "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"
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
   }
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || "heber-erp-central-storage";
+const BUCKET_NAME = process.env.AWS_S3_BUCKET;
 
 // Configure multer for memory storage
 const upload = multer({
