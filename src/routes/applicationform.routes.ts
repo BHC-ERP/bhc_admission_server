@@ -13,14 +13,14 @@ const router = Router();
 
 // Configure S3 Client
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "ap-south-1",
+  region: process.env.AWS_REGION || "us-east-1",
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ""
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "AKIATFX3NIVMYOMFIQBF",
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "bjsCL12lVWjCJVLkjwr27+ZKVgBo0AxoJ/uzSoXV"
   }
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || "your-bucket-name";
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || "heber-erp-central-storage";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -37,7 +37,7 @@ const upload = multer({
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
-    
+
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -58,7 +58,7 @@ export interface AuthenticatedRequest extends Request {
   file?: Express.Multer.File;
   files?: { [fieldname: string]: Express.Multer.File[] };
 }
- 
+
 
 // Document type mapping
 const documentTypes = [
@@ -84,8 +84,8 @@ const generateS3Key = (
   fileName: string
 ): string => {
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
-  const uniqueId = crypto.randomBytes(8).toString('hex');
-  return `admission/2026-2027/Student/${registrationNumber}/${documentType}/${uniqueId}_${sanitizedFileName}`;
+  // const uniqueId = crypto.randomBytes(8).toString('hex');
+  return `admission/2026-2027/Student/${registrationNumber}/${documentType}/${registrationNumber}_${sanitizedFileName}`;
 };
 
 // Helper function to upload file to S3
@@ -95,7 +95,7 @@ const uploadFileToS3 = async (
   documentType: string
 ): Promise<string> => {
   const key = generateS3Key(registrationNumber, documentType, file.originalname);
-  
+
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -109,7 +109,7 @@ const uploadFileToS3 = async (
   });
 
   await s3Client.send(command);
-  
+
   // Return the key (not the full URL) - we'll generate presigned URLs when viewing
   return key;
 };
@@ -120,7 +120,7 @@ const generatePresignedUrl = async (key: string): Promise<string> => {
     Bucket: BUCKET_NAME,
     Key: key
   });
-  
+
   // URL expires in 1 hour
   return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
 };
@@ -211,18 +211,21 @@ router.get("/caste_list", async (req: Request, res: Response) => {
  * Route 1: Save Personal Details
  * Endpoint: POST /application_form/personal_details
  */
-router.post("/personal_details/", async (req: Request, res: Response) => {
+router.post("/personal_details", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
     const personalDetails = req.body;
+
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
 
     // Validate required fields
     const requiredFields = ['fullName', 'dateOfBirth', 'gender', 'email', 'phone'];
     for (const field of requiredFields) {
       if (!personalDetails[field]) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: `${field} is required`,
-          field 
+          field
         });
       }
     }
@@ -230,31 +233,31 @@ router.post("/personal_details/", async (req: Request, res: Response) => {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(personalDetails.email)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Invalid email format",
-        field: "email" 
+        field: "email"
       });
     }
 
     // Validate phone (Indian mobile number)
     const mobileRegex = /^[6-9]\d{9}$/;
     if (!mobileRegex.test(personalDetails.phone)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Invalid mobile number format",
-        field: "phone" 
+        field: "phone"
       });
     }
 
     // Update candidate with personal details
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           personal_details: personalDetails,
           "metadata.last_modified_by": userId,
           "metadata.ip_address": req.ip || req.socket.remoteAddress,
           "metadata.user_agent": req.get("user-agent") || "Unknown"
-        } 
+        }
       },
       { new: true, runValidators: true }
     ).select("personal_details");
@@ -282,13 +285,16 @@ router.post("/personal_details/", async (req: Request, res: Response) => {
  */
 router.post("/address", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
     const addressData = req.body;
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
+
 
     // Validate address structure
     if (!addressData.present_address || !addressData.permanent_address) {
-      return res.status(400).json({ 
-        message: "Both present and permanent address are required" 
+      return res.status(400).json({
+        message: "Both present and permanent address are required"
       });
     }
 
@@ -296,20 +302,20 @@ router.post("/address", async (req: Request, res: Response) => {
     if (addressData.present_address.pincode) {
       const pincodeRegex = /^\d{6}$/;
       if (!pincodeRegex.test(addressData.present_address.pincode)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid present address pincode format",
-          field: "present_address.pincode" 
+          field: "present_address.pincode"
         });
       }
     }
 
-    if (addressData.permanent_address.pincode && 
-        !addressData.permanent_address.same_as_present) {
+    if (addressData.permanent_address.pincode &&
+      !addressData.permanent_address.same_as_present) {
       const pincodeRegex = /^\d{6}$/;
       if (!pincodeRegex.test(addressData.permanent_address.pincode)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid permanent address pincode format",
-          field: "permanent_address.pincode" 
+          field: "permanent_address.pincode"
         });
       }
     }
@@ -317,11 +323,11 @@ router.post("/address", async (req: Request, res: Response) => {
     // Update candidate with address details
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           address: addressData,
-          "metadata.last_modified_by": userId 
-        } 
+          "metadata.last_modified_by": userId
+        }
       },
       { new: true, runValidators: true }
     ).select("address");
@@ -349,14 +355,18 @@ router.post("/address", async (req: Request, res: Response) => {
  */
 router.post("/academic_background", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
+
+
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
     const academicData = req.body;
 
     // Validate required academic fields
     if (!academicData.programmeType) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Programme type is required",
-        field: "programmeType" 
+        field: "programmeType"
       });
     }
 
@@ -409,7 +419,7 @@ router.post("/academic_background", async (req: Request, res: Response) => {
     if (academicData.undergraduate_education && Array.isArray(academicData.undergraduate_education)) {
       for (let i = 0; i < academicData.undergraduate_education.length; i++) {
         const ug = academicData.undergraduate_education[i];
-        
+
         if (ug.year_of_passing && ug.year_of_passing > currentYear) {
           return res.status(400).json({
             message: `Undergraduate year of passing cannot be in the future. Current year is ${currentYear}`,
@@ -418,7 +428,7 @@ router.post("/academic_background", async (req: Request, res: Response) => {
             maxAllowed: currentYear
           });
         }
-        
+
         if (ug.duration?.start_year && ug.duration?.end_year) {
           if (ug.duration.start_year > ug.duration.end_year) {
             return res.status(400).json({
@@ -451,9 +461,9 @@ router.post("/academic_background", async (req: Request, res: Response) => {
     if (academicData.school_education?.tenth?.marks) {
       const { total, max_total } = academicData.school_education.tenth.marks;
       if (total > max_total) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Total marks cannot exceed maximum marks",
-          field: "tenth.marks" 
+          field: "tenth.marks"
         });
       }
     }
@@ -462,9 +472,9 @@ router.post("/academic_background", async (req: Request, res: Response) => {
     if (academicData.school_education?.twelfth?.marks) {
       const { total, max_total } = academicData.school_education.twelfth.marks;
       if (total > max_total) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Total marks cannot exceed maximum marks",
-          field: "twelfth.marks" 
+          field: "twelfth.marks"
         });
       }
     }
@@ -472,11 +482,11 @@ router.post("/academic_background", async (req: Request, res: Response) => {
     // Update candidate with academic background (use findOneAndUpdate with runValidators: false to bypass schema validation)
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           academic_background: academicData,
-          "metadata.last_modified_by": userId 
-        } 
+          "metadata.last_modified_by": userId
+        }
       },
       { new: true, runValidators: false } // Set to false to bypass schema validation
     ).select("academic_background");
@@ -494,21 +504,21 @@ router.post("/academic_background", async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error("Error saving academic background:", error);
-    
+
     // Handle specific validation errors
     if (error.name === "ValidationError") {
       const errors: Record<string, string> = {};
-      
+
       for (const field in error.errors) {
         errors[field] = error.errors[field].message;
       }
-      
+
       return res.status(400).json({
         message: "Validation failed",
         errors
       });
     }
-    
+
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -518,15 +528,19 @@ router.post("/academic_background", async (req: Request, res: Response) => {
  */
 router.post("/parents_details", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
     const parentsData = req.body;
+
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
+
 
     // Validate guardian information if is_guardian is true
     if (parentsData.guardian?.is_guardian) {
       if (!parentsData.guardian.guardian_name || !parentsData.guardian.guardian_mobile) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Guardian name and mobile are required when guardian is specified",
-          field: "guardian" 
+          field: "guardian"
         });
       }
     }
@@ -534,26 +548,26 @@ router.post("/parents_details", async (req: Request, res: Response) => {
     // Validate mobile numbers if provided
     const mobileRegex = /^[6-9]\d{9}$/;
     if (parentsData.father_mobile && !mobileRegex.test(parentsData.father_mobile)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Invalid father's mobile number",
-        field: "father_mobile" 
+        field: "father_mobile"
       });
     }
     if (parentsData.mother_mobile && !mobileRegex.test(parentsData.mother_mobile)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Invalid mother's mobile number",
-        field: "mother_mobile" 
+        field: "mother_mobile"
       });
     }
 
     // Update candidate with parents details
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           parents: parentsData,
-          "metadata.last_modified_by": userId 
-        } 
+          "metadata.last_modified_by": userId
+        }
       },
       { new: true, runValidators: true }
     ).select("parents");
@@ -581,36 +595,40 @@ router.post("/parents_details", async (req: Request, res: Response) => {
  */
 router.post("/bank_details", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
+
     const bankData = req.body;
+
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
 
     // Validate IFSC code if provided
     if (bankData.ifsc_code) {
       const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
       if (!ifscRegex.test(bankData.ifsc_code)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid IFSC code format",
-          field: "ifsc_code" 
+          field: "ifsc_code"
         });
       }
     }
 
     // Validate account number if provided (basic check)
     if (bankData.account_number && bankData.account_number.length < 9) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Account number must be at least 9 digits",
-        field: "account_number" 
+        field: "account_number"
       });
     }
 
     // Update candidate with bank details
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           bank_details: bankData,
-          "metadata.last_modified_by": userId 
-        } 
+          "metadata.last_modified_by": userId
+        }
       },
       { new: true, runValidators: true }
     ).select("bank_details");
@@ -638,24 +656,29 @@ router.post("/bank_details", async (req: Request, res: Response) => {
  */
 router.post("/category_facilities", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.user!.id;
+
+
+
+
+    const userId = await getSessionUserId(req.cookies.sid);
+
     const categoryData = req.body;
 
     // Validate category data
     if (!categoryData.category_and_facilities) {
-      return res.status(400).json({ 
-        message: "Category and facilities data is required" 
+      return res.status(400).json({
+        message: "Category and facilities data is required"
       });
     }
 
     // Update candidate with category and facilities
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           category_and_facilities: categoryData.category_and_facilities,
-          "metadata.last_modified_by": userId 
-        } 
+          "metadata.last_modified_by": userId
+        }
       },
       { new: true, runValidators: true }
     ).select("category_and_facilities");
@@ -680,11 +703,10 @@ router.post("/category_facilities", async (req: Request, res: Response) => {
  * Route: Upload single document by registration number
  * Endpoint: POST /application_form/upload_document/:registration_number/:documentType
  */
-router.post(
-  "/upload_document/:registration_number/:documentType",
+router.post("/upload_document/:registration_number/:documentType",
   upload.single("document"),
   async (req: Request, res: Response): Promise<Response> => {
-    try { 
+    try {
       const registrationNumber = parseInt(req.params.registration_number.toString());
       const { documentType } = req.params;
       const file = req.file;
@@ -707,8 +729,8 @@ router.post(
       }
 
       // Find candidate by registration number
-      const candidate = await candidateModel.findOne({ 
-        registration_number: registrationNumber 
+      const candidate = await candidateModel.findOne({
+        registration_number: registrationNumber
       });
 
       if (!candidate) {
@@ -767,8 +789,7 @@ router.post(
  * Route: Upload multiple documents by registration number
  * Endpoint: POST /application_form/upload_documents/:registration_number
  */
-router.post(
-  "/upload_documents/:registration_number",
+router.post("/upload_documents/:registration_number",
   upload.fields([
     { name: 'passport_photo', maxCount: 1 },
     { name: 'tenth_marksheet', maxCount: 1 },
@@ -783,7 +804,7 @@ router.post(
     { name: 'tancet_scorecard', maxCount: 1 }
   ]),
   async (req: Request, res: Response): Promise<Response> => {
-    try { 
+    try {
       const registrationNumber = parseInt(req.params.registration_number.toString());
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
@@ -793,8 +814,8 @@ router.post(
       }
 
       // Find candidate by registration number
-      const candidate = await candidateModel.findOne({ 
-        registration_number: registrationNumber 
+      const candidate = await candidateModel.findOne({
+        registration_number: registrationNumber
       });
 
       if (!candidate) {
@@ -808,7 +829,7 @@ router.post(
       for (const [documentType, fileArray] of Object.entries(files)) {
         if (fileArray && fileArray.length > 0) {
           const file = fileArray[0];
-          
+
           // Upload to S3
           const s3Key = await uploadFileToS3(
             file,
@@ -872,12 +893,12 @@ router.post(
   "/upload_document/:documentType",
   upload.single("document"),
   async (req: Request, res: Response): Promise<Response> => {
-    try { 
+    try {
       // This would require authentication middleware to get user ID from session
       // For now, using registration number from body as fallback
-      const registrationNumber = req.body.registration_number ? 
+      const registrationNumber = req.body.registration_number ?
         parseInt(req.body.registration_number) : null;
-      
+
       if (!registrationNumber || isNaN(registrationNumber)) {
         return res.status(400).json({ message: "Registration number is required" });
       }
@@ -898,8 +919,8 @@ router.post(
       }
 
       // Find candidate by registration number
-      const candidate = await candidateModel.findOne({ 
-        registration_number: registrationNumber 
+      const candidate = await candidateModel.findOne({
+        registration_number: registrationNumber
       });
 
       if (!candidate) {
@@ -966,8 +987,8 @@ router.get("/documents/:registration_number", async (req: Request, res: Response
       return res.status(400).json({ message: "Invalid registration number" });
     }
 
-    const candidate = await candidateModel.findOne({ 
-      registration_number: registrationNumber 
+    const candidate = await candidateModel.findOne({
+      registration_number: registrationNumber
     });
 
     if (!candidate) {
@@ -1005,6 +1026,10 @@ router.get("/documents/:registration_number", async (req: Request, res: Response
  * Endpoint: DELETE /application_form/documents/:registration_number/:documentType
  */
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { connectDB } from "../config/database";
+import mongoose from "mongoose";
+import { env } from "../config/env";
+import { getSessionUserId } from "../config/session";
 
 router.delete("/documents/:registration_number/:documentType", async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -1016,8 +1041,8 @@ router.delete("/documents/:registration_number/:documentType", async (req: Reque
     }
 
     // First, find the candidate to get the document S3 key
-    const candidate = await candidateModel.findOne({ 
-      registration_number: registrationNumber 
+    const candidate = await candidateModel.findOne({
+      registration_number: registrationNumber
     });
 
     if (!candidate) {
@@ -1030,10 +1055,10 @@ router.delete("/documents/:registration_number/:documentType", async (req: Reque
     );
 
     if (!documentToDelete) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         message: "Document not found for this candidate",
         registration_number: registrationNumber,
-        document_type: documentType 
+        document_type: documentType
       });
     }
 
@@ -1059,13 +1084,16 @@ router.delete("/documents/:registration_number/:documentType", async (req: Reque
 
     // Delete from S3 bucket
     try {
+      if (!s3Key) {
+        throw new Error("s3Key is missing");
+      }
       const deleteCommand = new DeleteObjectCommand({
         Bucket: BUCKET_NAME,
         Key: s3Key
       });
-      
+
       await s3Client.send(deleteCommand);
-      
+
       console.log(`File deleted from S3: ${s3Key}`);
     } catch (s3Error) {
       console.error("Error deleting file from S3:", s3Error);
@@ -1094,7 +1122,7 @@ router.post("/documents_submit", async (req: Request, res: Response): Promise<Re
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const userId = req.session.user.id;
     const documentsData = req.body;
 
@@ -1131,13 +1159,13 @@ router.post("/documents_submit", async (req: Request, res: Response): Promise<Re
     // Update candidate status to Applied
     const updatedCandidate = await candidateModel.findByIdAndUpdate(
       userId,
-      { 
-        $set: { 
+      {
+        $set: {
           "admission_status.current": "Applied",
           "metadata.submitted_at": new Date(),
           "metadata.last_modified_by": userId,
           "metadata.version": (candidate.metadata?.version || 0) + 1
-        } 
+        }
       },
       { new: true, runValidators: true }
     ).select("-__v");
@@ -1199,7 +1227,7 @@ router.get("/documents", async (req: Request, res: Response): Promise<Response> 
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const userId = req.session.user.id;
 
     const candidate = await candidateModel.findById(userId);
@@ -1241,7 +1269,7 @@ router.get("/progress", async (req: Request, res: Response): Promise<Response> =
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const userId = req.session.user.id;
 
     const candidate = await candidateModel.findById(userId)
@@ -1293,7 +1321,7 @@ router.get("/data", async (req: Request, res: Response): Promise<Response> => {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const userId = req.session.user.id;
 
     const candidate = await candidateModel.findById(userId)

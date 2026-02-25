@@ -198,7 +198,8 @@ router.post("/login", async (req: Request<{}, {}, LoginRequest>, res: Response):
     return res.json({
       message: "Login successful",
       token,
-      user
+      user,
+      session_id: req.sessionID
     });
 
   } catch (err) {
