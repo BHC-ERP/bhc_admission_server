@@ -6,7 +6,8 @@ const CandidateSchema = new mongoose.Schema({
     registration_number: {
         type: Number,
         required: true,
-        unique: true
+        unique: true,
+        index: true
     },
     academic_year: {
         type: String,
@@ -45,10 +46,10 @@ const CandidateSchema = new mongoose.Schema({
     personal_details: {
         fullName: { type: String, required: true },
         dateOfBirth: { type: Date, required: true },
-        gender: { 
-            type: String, 
+        gender: {
+            type: String,
             enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
-            required: true 
+            required: true
         },
         genderOther: String,
         email: {
@@ -59,20 +60,21 @@ const CandidateSchema = new mongoose.Schema({
         },
         phone: {
             type: String,
+            unique: true,
             required: true
         },
         nationality: { type: String, default: 'Indian' },
         aadharNumber: {
             type: String,
+            unique: true,
             match: [/^\d{12}$/, "Aadhar must be 12 digits"],
             sparse: true
         },
-        caste: String, 
-        passportNumber: String, 
+        caste: String,
+        passportNumber: String,
         countryOfOrigin: String,
         community: {
             type: String,
-            enum: ['BC', 'BCM', 'MBC', 'MBC & DNC', 'SC', 'SCA', 'ST', 'OC', 'BS', 'Other']
         },
         bloodGroup: {
             type: String,
@@ -94,8 +96,7 @@ const CandidateSchema = new mongoose.Schema({
             max: 100
         },
         christianDenomination: {
-            type: String,
-            enum: ['Catholic', 'CSI', 'Other', 'None']
+            type: String, 
         },
         christianDenominationOther: String,
         differentlyAbled: {
@@ -111,8 +112,8 @@ const CandidateSchema = new mongoose.Schema({
     /* ==================== ADDRESS ==================== */
     address: {
         present_address: {
-            type: { 
-                type: String, 
+            type: {
+                type: String,
                 enum: ['residential', 'commercial', 'other'],
                 default: 'residential'
             },
@@ -125,8 +126,8 @@ const CandidateSchema = new mongoose.Schema({
             district: String,
             state: String,
             country: { type: String, default: 'India' },
-            pincode: { 
-                type: String, 
+            pincode: {
+                type: String,
                 match: [/^\d{6}$/, "Invalid pincode"],
                 sparse: true
             }
@@ -173,10 +174,10 @@ const CandidateSchema = new mongoose.Schema({
                     district: String,
                     pincode: String
                 },
-                year_of_passing: { 
-                    type: Number, 
-                    min: 1950, 
-                    max: () => new Date().getFullYear() 
+                year_of_passing: {
+                    type: Number,
+                    min: 1950,
+                    max: () => new Date().getFullYear()
                 },
                 attempts: { type: Number, min: 1, default: 1 },
                 marks: {
@@ -202,10 +203,10 @@ const CandidateSchema = new mongoose.Schema({
                     district: String,
                     pincode: String
                 },
-                year_of_passing: { 
-                    type: Number, 
-                    min: 1950, 
-                    max: () => new Date().getFullYear() 
+                year_of_passing: {
+                    type: Number,
+                    min: 1950,
+                    max: () => new Date().getFullYear()
                 },
                 attempts: { type: Number, min: 1, default: 1 },
                 group: String,
@@ -313,7 +314,7 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== CATEGORY AND FACILITIES ==================== */
-    category_and_facilities: { 
+    category_and_facilities: {
         facilities: {
             hostel: {
                 required: { type: Boolean, default: false }
@@ -321,11 +322,11 @@ const CandidateSchema = new mongoose.Schema({
             transport: {
                 required: { type: Boolean, default: false }
             }
-        }, 
+        },
     },
 
     /* ==================== DOCUMENTS ==================== */
-    documents: { 
+    documents: {
         // Keep the existing required_documents array for flexibility
         required_documents: [{
             document_type: String,
@@ -341,19 +342,19 @@ const CandidateSchema = new mongoose.Schema({
     application_preferences: {
         applications: [{
             application_number: Number,
-            application_type: { 
-                type: String, 
-                enum: ['UG', 'PG', 'Diploma', 'Certificate', 'PhD'] 
+            application_type: {
+                type: String,
+                enum: ['UG', 'PG', 'Diploma', 'Certificate', 'PhD']
             },
-            stream: { 
-                type: String, 
-                enum: ['Aided', 'Self Financed'] 
+            stream: {
+                type: String,
+                enum: ['Aided', 'Self Financed']
             },
             program_code: String,
             program_name: String,
-            shift: { 
-                type: String, 
-                enum: ['Shift-I', 'Shift-II'] 
+            shift: {
+                type: String,
+                enum: ['Shift-I', 'Shift-II']
             },
             preference_order: { type: Number, min: 1 },
             status: {
@@ -361,9 +362,9 @@ const CandidateSchema = new mongoose.Schema({
                 enum: ['Applied', 'Under Review', 'Selected', 'Not Selected', 'Waitlisted', 'Cancelled']
             },
             admission_details: {
-                admit_status: { 
-                    type: String, 
-                    enum: ['Yes', 'No', 'Pending'] 
+                admit_status: {
+                    type: String,
+                    enum: ['Yes', 'No', 'Pending']
                 },
                 admission_date: Date
             },
@@ -376,34 +377,34 @@ const CandidateSchema = new mongoose.Schema({
         required: { type: Boolean, default: false },
         stages: [{
             stage_name: String,
-            stage_type: { 
-                type: String, 
-                enum: ['test', 'interview', 'practical'] 
+            stage_type: {
+                type: String,
+                enum: ['test', 'interview', 'practical']
             },
             schedule: {
                 date: Date,
                 venue: String,
-                status: { 
-                    type: String, 
-                    enum: ['scheduled', 'completed'] 
+                status: {
+                    type: String,
+                    enum: ['scheduled', 'completed']
                 }
             },
             result: {
-                status: { 
-                    type: String, 
-                    enum: ['pending', 'selected', 'not selected'] 
+                status: {
+                    type: String,
+                    enum: ['pending', 'selected', 'not selected']
                 }
             },
             _id: false
         }]
-    }, 
+    },
 
     /* ==================== PAYMENT ==================== */
     payment: {
         amount: Number,
         status: {
             type: String,
-            enum: ['pending', 'partial', 'completed', 'refunded'],
+            enum: ['pending', 'exempted', 'success', 'failed'],
             default: 'pending'
         },
         transaction_id: String,
@@ -422,10 +423,10 @@ const CandidateSchema = new mongoose.Schema({
     }
 
 },
-{
-    timestamps: true,
-    versionKey: false
-});
+    {
+        timestamps: true,
+        versionKey: false
+    });
 
 /* ==================== INDEXES ==================== */
 CandidateSchema.index({ 'personal_details.email': 1 });
@@ -435,41 +436,41 @@ CandidateSchema.index({ registration_number: 1 });
 CandidateSchema.index({ 'admission_status.current': 1 });
 CandidateSchema.index({ createdAt: -1 });
 
- 
+
 /* ==================== VIRTUAL FIELDS ==================== */
-CandidateSchema.virtual('full_name').get(function() {
+CandidateSchema.virtual('full_name').get(function () {
     return this.personal_details?.fullName;
 });
 
-CandidateSchema.virtual('age').get(function() {
+CandidateSchema.virtual('age').get(function () {
     if (!this.personal_details?.dateOfBirth) return null;
-    
+
     const dob = new Date(this.personal_details.dateOfBirth);
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const monthDiff = today.getMonth() - dob.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
         age--;
     }
-    
+
     return age;
 });
- 
+
 /* ==================== STATICS ==================== */
-CandidateSchema.statics.findByEmail = function(email) {
+CandidateSchema.statics.findByEmail = function (email) {
     return this.findOne({ 'personal_details.email': email });
 };
 
-CandidateSchema.statics.findByPhone = function(phone) {
+CandidateSchema.statics.findByPhone = function (phone) {
     return this.findOne({ 'personal_details.phone': phone });
 };
 
-CandidateSchema.statics.findByRegistrationNumber = function(regNumber) {
+CandidateSchema.statics.findByRegistrationNumber = function (regNumber) {
     return this.findOne({ registration_number: regNumber });
 };
 
-CandidateSchema.statics.getPendingApplications = function() {
+CandidateSchema.statics.getPendingApplications = function () {
     return this.find({ 'admission_status.current': 'Applied' });
 };
 
