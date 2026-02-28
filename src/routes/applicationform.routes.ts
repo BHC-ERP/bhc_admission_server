@@ -22,7 +22,13 @@ import {
   submitApplicationController,
   getProgressController,
   getFormDataController,
-  getDashboardDataController
+  getDashboardDataController,
+  getPersonalDataController,
+  getParentsDetailsController,
+  getAddressController,
+  getAcademicBackgroundController,
+  getBankDetailsController,
+  getCategoryFacilitiesController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -56,6 +62,15 @@ router.get("/caste_list", casteListController);
 
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
+
+// ====================GET APPLICATION FORM ROUTES ====================
+router.get("/personal_details", getPersonalDataController);
+router.get("/parents_details", getParentsDetailsController);
+router.get("/address", getAddressController);
+router.get("/academic_background", getAcademicBackgroundController);
+router.get("/higher_education", getBankDetailsController);
+router.get("/category_facilities", getCategoryFacilitiesController);
+
 // ==================== APPLICATION FORM ROUTES ====================
 router.post("/personal_details", personalDetailsController);
 router.post("/address", addressController);

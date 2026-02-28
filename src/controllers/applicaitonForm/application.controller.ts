@@ -267,7 +267,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         return res.json({
             registration_number: candidate.registration_number,
             personal_details: candidate.personal_details,
-            personal_details_completion: personalDetailsPercentage, 
+            personal_details_completion: personalDetailsPercentage,
             payment_status: candidate.payment?.status || 'pending',
             payment_details: candidate.payment || {},
             documents: {
@@ -288,7 +288,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
                 percentage: overallCompletionPercentage,
                 requirements_met: completedRequirements,
                 total_requirements: totalRequirements,
-                is_complete: overallCompletionPercentage >= 80 // Consider complete if 80% or more
+                is_complete: overallCompletionPercentage >= 80
             },
             // Application summary for quick view
             application_summary: {
@@ -318,6 +318,106 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         });
     }
 }
+
+// =====================Get Application Form Controllers====================
+
+export const getPersonalDataController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("personal_details").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            personal_details: candidate.personal_details
+        });
+    } catch (error) {
+        console.error("Error fetching personal details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getParentsDetailsController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("parents").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            parents: candidate.parents
+        });
+    } catch (error) {
+        console.error("Error fetching parents details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getAddressController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("address").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            address: candidate.address
+        });
+    } catch (error) {
+        console.error("Error fetching address details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getAcademicBackgroundController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("academic_background").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            academic_background: candidate.academic_background
+        });
+    } catch (error) {
+        console.error("Error fetching academic background details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getBankDetailsController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("bank_details").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            bank_details: candidate.bank_details
+        });
+    } catch (error) {
+        console.error("Error fetching bank details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getCategoryFacilitiesController = async (req: Request, res: Response) => {
+    try {
+        const userId = await getSessionUserId(req.cookies.sid);
+        const candidate = await CandidateAdmission.findById(userId).select("category_and_facilities").lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+        return res.status(200).json({
+            category_and_facilities: candidate.category_and_facilities
+        });
+    } catch (error) {
+
+        console.error("Error fetching category and facilities details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 // ==================== APPLICATION FORM CONTROLLERS ====================
 
 // POST /personal_details
@@ -438,7 +538,7 @@ export const academicBackgroundController = async (req: Request, res: Response) 
         const userId = await getSessionUserId(req.cookies.sid);
         const academicData = req.body;
         const currentYear = new Date().getFullYear();
- 
+
 
         // Validate tenth year
         if (academicData.school_education?.tenth?.year_of_passing) {
