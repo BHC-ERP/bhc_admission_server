@@ -5,7 +5,7 @@ import protectedRoutes from "./protected.routes";
 import programsRoutes from "./programs.routes";
 import uploadRoutes from "./upload.routes";
 import application_form from "./applicationform.routes";
-
+import visitorRoutes from "./visitor.routes";
 const router = Router();
 
 router.get("/health", healthCheck);
@@ -15,5 +15,5 @@ router.use("/application_form", application_form);
 router.use("/protected", protectedRoutes);
 router.use("/programs", programsRoutes);
 router.use("/docs/upload", uploadRoutes);
-
+router.use("/visitor", visitorRoutes);
 export default router;

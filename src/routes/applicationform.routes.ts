@@ -28,7 +28,8 @@ import {
   getAddressController,
   getAcademicBackgroundController,
   getBankDetailsController,
-  getCategoryFacilitiesController
+  getCategoryFacilitiesController,
+  getDocumentController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -70,7 +71,7 @@ router.get("/address", getAddressController);
 router.get("/academic_background", getAcademicBackgroundController);
 router.get("/higher_education", getBankDetailsController);
 router.get("/category_facilities", getCategoryFacilitiesController);
-
+router.get("/documents", getDocumentController);
 // ==================== APPLICATION FORM ROUTES ====================
 router.post("/personal_details", personalDetailsController);
 router.post("/address", addressController);
