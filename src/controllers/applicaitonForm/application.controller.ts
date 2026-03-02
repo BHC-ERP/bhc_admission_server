@@ -454,11 +454,6 @@ export const personalDetailsController = async (req: Request, res: Response) => 
             return res.status(400).json({ message: "Invalid email format", field: "email" });
         }
 
-        // Validate phone (Indian mobile number)
-        const mobileRegex = /^[6-9]\d{9}$/;
-        if (!mobileRegex.test(personalDetails.phone)) {
-            return res.status(400).json({ message: "Invalid mobile number format", field: "phone" });
-        }
 
         // Update candidate with personal details
         const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
