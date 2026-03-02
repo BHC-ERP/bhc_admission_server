@@ -11,6 +11,9 @@ const ProgrammeSchema = new mongoose.Schema({
     program_type: {
         type: String,
         enum: ['UG', 'PG']
+    }, 
+    department_name: {
+        type: String, 
     },
     special: {
         type: String,
