@@ -158,6 +158,7 @@ const CandidateSchema = new mongoose.Schema({
         programmeName: String,
         school_education: {
             is_first_generation_learner: { type: Boolean, default: false },
+                emis_number: String,
             tenth: {
                 board: String,
                 school_name: String,
@@ -167,7 +168,7 @@ const CandidateSchema = new mongoose.Schema({
                     enum: ['Government', 'Government Aided', 'Private', 'CBSE', 'ICSE', 'Other']
                 },
                 medium: String,
-                emis_number: String,
+             
                 school_address_details: {
                     country: { type: String, default: 'India' },
                     state: String,
@@ -195,7 +196,7 @@ const CandidateSchema = new mongoose.Schema({
                     enum: ['Government', 'Government Aided', 'Private', 'CBSE', 'ICSE', 'Other']
                 },
                 medium: String,
-                emis_number: String,
+            
                 register_number: String,
                 school_address_details: {
                     country: { type: String, default: 'India' },
