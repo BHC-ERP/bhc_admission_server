@@ -299,9 +299,9 @@ export const candidateSignup = async (
         const dayDiff = new Date().getDate() - dateOfBirth.getDate();
         const exactAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
-        if (exactAge < 16 || exactAge > 100) {
+        if (exactAge < 15 || exactAge > 100) {
             return res.status(400).json({
-                message: "Age must be between 16 and 100 years"
+                message: "Age must be between 15 and 100 years"
             });
         }
 
@@ -317,7 +317,7 @@ export const candidateSignup = async (
                 email: personal_details.contact_info.email,
                 phone: personal_details.contact_info.mobile,
                 community: personal_details.basic_info.community == "Others" ? personal_details.basic_info.other_community : personal_details.basic_info.community,
-                nationality: "Indian",
+                nationality: personal_details.basic_info.is_nri ? "Outside Indian" : "Indian",
             },
             application_preferences: {
                 applications

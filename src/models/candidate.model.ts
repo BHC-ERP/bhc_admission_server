@@ -63,7 +63,7 @@ const CandidateSchema = new mongoose.Schema({
             unique: true,
             required: true
         },
-        nationality: { type: String, default: 'Indian' },
+        nationality: { type: String, default: 'Indian', enum: ['Indian', 'Outside Indian'] },
         aadharNumber: {
             type: String,
             unique: true,
@@ -96,7 +96,7 @@ const CandidateSchema = new mongoose.Schema({
             max: 100
         },
         christianDenomination: {
-            type: String, 
+            type: String,
         },
         christianDenominationOther: String,
         differentlyAbled: {
