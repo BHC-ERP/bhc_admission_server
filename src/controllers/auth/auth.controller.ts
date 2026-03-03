@@ -82,7 +82,7 @@ interface Application {
     application_type: "UG" | "PG" | "Diploma" | "Certificate" | "PhD";
     program_code: string;
     program_name: string;
-    stream?: "Aided" | "Self-Financed";
+    stream?: "Aided" | "Self-Finance";
     status?: "Draft" | "Applied" | "Under Review" | "Selected" | "Not Selected" | "Waitlisted" | "Cancelled";
     shift?: "Shift-I" | "Shift-II";
     preference_order?: number;
@@ -260,7 +260,7 @@ export const candidateSignup = async (
                 application_type,
                 program_code: program_code[i],
                 program_name: program_names[i] || programMap[program_code[i]] || "",
-                stream: program_streams[i] as "Aided" | "Self-Financed",
+                stream: program_streams[i] as "Aided" | "Self-Finance",
                 status: "Draft",
                 preference_order: i + 1
             });

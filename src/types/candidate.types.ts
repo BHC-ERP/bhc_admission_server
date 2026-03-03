@@ -218,7 +218,7 @@ export interface Address {
 export interface ApplicationPreference {
   application_number?: number;
   application_type?: 'UG' | 'PG' | 'Diploma' | 'Certificate' | 'PhD';
-  stream?: 'Aided' | 'Self-Financed';
+  stream?: 'Aided' | 'Self-Finance';
   program_code?: string;
   program_name?: string;
   shift?: 'Shift-I' | 'Shift-II';

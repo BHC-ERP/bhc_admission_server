@@ -26,7 +26,7 @@ const ProgrammeSchema = new mongoose.Schema({
     },
     stream: {
         type: String,
-        enum: ['Aided', 'Self-Financed']
+        enum: ['Aided', 'Self-Finance']
     },
     shift: {
         type: String,

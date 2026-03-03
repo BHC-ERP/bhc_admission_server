@@ -349,7 +349,7 @@ const CandidateSchema = new mongoose.Schema({
             },
             stream: {
                 type: String,
-                enum: ['Aided', 'Self-Financed']
+                enum: ['Aided', 'Self-Finance']
             },
             program_code: String,
             program_name: String,
