@@ -82,8 +82,8 @@ interface Application {
     application_type: "UG" | "PG" | "Diploma" | "Certificate" | "PhD";
     program_code: string;
     program_name: string;
-    stream?: "Aided" | "Self Financed";
-    status?: "Applied" | "Under Review" | "Selected" | "Not Selected" | "Waitlisted" | "Cancelled";
+    stream?: "Aided" | "Self-Financed";
+    status?: "Draft" | "Applied" | "Under Review" | "Selected" | "Not Selected" | "Waitlisted" | "Cancelled";
     shift?: "Shift-I" | "Shift-II";
     preference_order?: number;
 }
@@ -260,8 +260,8 @@ export const candidateSignup = async (
                 application_type,
                 program_code: program_code[i],
                 program_name: program_names[i] || programMap[program_code[i]] || "",
-                stream: program_streams[i] as "Aided" | "Self Financed",
-                status: "Applied",
+                stream: program_streams[i] as "Aided" | "Self-Financed",
+                status: "Draft",
                 preference_order: i + 1
             });
         }
@@ -330,7 +330,7 @@ export const candidateSignup = async (
                 payment_method: payment_details?.payment_method
             },
             admission_status: {
-                current: "Applied" as const
+                current: "Draft" as const
             },
             academic_background: {
                 programmeType: application_type

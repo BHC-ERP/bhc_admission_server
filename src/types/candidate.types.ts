@@ -49,7 +49,7 @@ export interface CandidateDocuments {
 }
 
 export interface BasicInfo {
-  name:  string;
+  name: string;
   gender?: string;
   date_of_birth?: Date;
   age?: number;
@@ -218,7 +218,7 @@ export interface Address {
 export interface ApplicationPreference {
   application_number?: number;
   application_type?: 'UG' | 'PG' | 'Diploma' | 'Certificate' | 'PhD';
-  stream?: 'Aided' | 'Self Financed';
+  stream?: 'Aided' | 'Self-Financed';
   program_code?: string;
   program_name?: string;
   shift?: 'Shift-I' | 'Shift-II';

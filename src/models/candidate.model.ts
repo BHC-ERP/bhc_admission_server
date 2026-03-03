@@ -349,7 +349,7 @@ const CandidateSchema = new mongoose.Schema({
             },
             stream: {
                 type: String,
-                enum: ['Aided', 'Self Financed']
+                enum: ['Aided', 'Self-Financed']
             },
             program_code: String,
             program_name: String,
@@ -360,7 +360,7 @@ const CandidateSchema = new mongoose.Schema({
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Applied', 'Under Review', 'Selected', 'Not Selected', 'Waitlisted', 'Cancelled']
+                enum: ['Draft','Applied', 'Under Review', 'Selected', 'Not Selected', 'Waitlisted', 'Cancelled']
             },
             admission_details: {
                 admit_status: {
@@ -472,7 +472,7 @@ CandidateSchema.statics.findByRegistrationNumber = function (regNumber) {
 };
 
 CandidateSchema.statics.getPendingApplications = function () {
-    return this.find({ 'admission_status.current': 'Applied' });
+    return this.find({ 'admission_status.current': 'Draft' });
 };
 
 /* ==================== MODEL ==================== */

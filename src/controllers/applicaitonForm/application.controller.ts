@@ -1232,7 +1232,7 @@ export const getProgressController = async (req: Request, res: Response) => {
             { name: "Bank Details", completed: !!candidate.bank_details && Object.keys(candidate.bank_details).length > 0 },
             { name: "Category & Facilities", completed: !!candidate.category_and_facilities && Object.keys(candidate.category_and_facilities).length > 0 },
             { name: "Documents", completed: !!(candidate.documents?.required_documents?.length && candidate.documents.required_documents.length > 0) },
-            { name: "Submit", completed: candidate.admission_status?.current === "Applied" }
+            { name: "Submit", completed: candidate.admission_status?.current === "Draft" }
         ];
 
         const completedSteps = steps.filter(step => step.completed).length;
@@ -1285,5 +1285,108 @@ export const getFormDataController = async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Error fetching form data:", error);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+
+//Submit Controller ---------------------------------------------
+export const fromSubmitController = async (req: Request, res: Response) => {
+
+    const registrationNumber = req.params.registrationNumber;
+
+    if (!registrationNumber || isNaN(Number(registrationNumber))) {
+        return res.status(400).json({
+            message: "Registration number is required",
+            received: registrationNumber
+        });
+    }
+
+    try {
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(registrationNumber) });
+
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+
+        // Ensure admission_status exists
+        if (!candidate.admission_status) {
+            candidate.admission_status = {
+                current: 'Draft',
+                status_history: [
+                    {
+                        status: 'Draft',
+                        changed_at: new Date(),
+                        remarks: 'Application created'
+                    }
+                ] as any,
+                previous: ''
+            };
+        }
+
+        // Store current status in history before changing
+        if (candidate.admission_status.current && candidate.admission_status.current !== 'Applied') {
+            // Initialize status_history if it doesn't exist (using type assertion for DocumentArray)
+            if (!candidate.admission_status.status_history) {
+                candidate.admission_status.status_history = [] as any;
+            }
+
+            // Push the current status to history
+            (candidate.admission_status.status_history as any).push({
+                status: candidate.admission_status.current,
+                changed_at: new Date(),
+                remarks: 'Application submitted'
+            });
+
+            // Update previous status
+            candidate.admission_status.previous = candidate.admission_status.current;
+        }
+
+        // Change current status to "Applied"
+        candidate.admission_status.current = "Applied";
+
+        // Update all applications in application_preferences to "Applied"
+        if (candidate.application_preferences &&
+            candidate.application_preferences.applications &&
+            candidate.application_preferences.applications.length > 0) {
+
+            candidate.application_preferences.applications.forEach((app: any) => {
+                if (app) {
+                    app.status = "Applied";
+                }
+            });
+        }
+
+        // Update metadata with proper initialization
+        if (!candidate.metadata) {
+            candidate.metadata = {
+                version: 1,
+                is_active: true,
+                submitted_at: new Date(),
+                last_modified_by: (req as any).user?.id || 'system'
+            };
+        } else {
+            candidate.metadata.submitted_at = new Date();
+            candidate.metadata.last_modified_by = (req as any).user?.id || 'system';
+            candidate.metadata.version = (candidate.metadata.version || 0) + 1;
+        }
+
+        // Save the updated candidate
+        await candidate.save();
+
+        return res.status(200).json({
+            message: "Application submitted successfully",
+            data: {
+                registration_number: candidate.registration_number,
+                admission_status: candidate.admission_status?.current,
+                submitted_at: candidate.metadata?.submitted_at
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Error submitting application:", error);
+        return res.status(500).json({
+            message: "Error submitting application",
+            error: error?.message
+        });
     }
 };

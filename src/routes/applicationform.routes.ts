@@ -29,7 +29,8 @@ import {
   getAcademicBackgroundController,
   getBankDetailsController,
   getCategoryFacilitiesController,
-  getDocumentController
+  getDocumentController,
+  fromSubmitController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -121,4 +122,7 @@ router.post("/documents_submit", submitApplicationController);
 router.get("/progress", getProgressController);
 router.get("/data", getFormDataController);
 
+
+//============================Submit Applicaiton=============================
+router.post("/submit-applicaitonForm/:registrationNumber", fromSubmitController);
 export default router;
