@@ -15,7 +15,7 @@ router.post("/login", candidateLogin);
 router.post("/signup", candidateSignup);
 router.post("/forgot-registration", findRegistrationNumber);
 router.post("/logout", logout);
-
+//payment
 router.post("/simulate-payment", paymentSimulation);
 // Department routes
 router.post("/department/login", departmentLogin);

@@ -10,7 +10,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET || "super_secret_key",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
   SESSION_SECRET: process.env.SESSION_SECRET || "session_secret_key",
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
+  CLIENT_URL: process.env.CLIENT_URL,
   MAIL_USER: process.env.MAIL_USER || 'bishophebercollegeweb@gmail.com',
   MAIL_PASS: process.env.MAIL_PASS || 'qnxcfbldushagbih'
 };
