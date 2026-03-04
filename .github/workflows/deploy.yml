@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -31,11 +30,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: |
-            dist/*
-            package.json
-            package-lock.json
-            .env
+          source: "dist/*,package.json,package-lock.json,.env"
           target: ${{ secrets.APP_DIR }}
 
       - name: Install Production Dependencies & Restart Service
