@@ -124,5 +124,5 @@ router.get("/data", getFormDataController);
 
 
 //============================Submit Applicaiton=============================
-router.post("/submit-applicaitonForm/:registrationNumber", fromSubmitController);
+router.post("/submit-applicaitonForm/:registrationNumber", submitApplicationController);
 export default router;

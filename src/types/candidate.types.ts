@@ -221,15 +221,29 @@ export interface ApplicationPreference {
   stream?: 'Aided' | 'Self-Finance';
   program_code?: string;
   program_name?: string;
-  shift?: 'Shift-I' | 'Shift-II';
+  shift?: 'Shift-1' | 'Shift-2';
   preference_order?: number;
-  status?: string;
+  status?: 'Applied' | 'HOD_SELECTION' | 'HOD_SELECTION_INTERVIEW' | 'VERIFIED' | 'SMS_SENT' | 'NOT_SELECTED' | 'ADMISSION' | 'ADMIT';
   admission_details?: {
     admit_status?: 'Yes' | 'No' | 'Pending';
     admission_date?: Date;
   };
+  // Add these for staff allocation
+  staff_id?: string;
+  staff_name?: string;
+  staff_department?: string;
+  selection_date?: Date;
+  selection_remarks?: string;
+  interview_details?: {
+    scheduled_date?: Date;
+    status?: 'Scheduled' | 'Completed' | 'Cancelled' | 'Rescheduled';
+    scheduled_by?: string;
+    scheduled_by_id?: string;
+    scheduled_at?: Date;
+  };
+  interview_requested?: boolean;
+  interview_status?: string;
 }
-
 export interface ApplicationPreferences {
   applications?: ApplicationPreference[];
 }

@@ -355,12 +355,12 @@ const CandidateSchema = new mongoose.Schema({
             program_name: String,
             shift: {
                 type: String,
-                enum: ['Shift-I', 'Shift-II']
+                enum: ['Shift-1', 'Shift-2']
             },
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Draft','Applied', 'Under Review', 'Selected', 'Not Selected', 'Waitlisted', 'Cancelled']
+                enum: ['Draft','Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED','DIRECT_ADMIT',  'SMS_SENT', 'NOT_SELECTED','ADMISSION','ADMIT']
             },
             admission_details: {
                 admit_status: {
@@ -382,7 +382,7 @@ const CandidateSchema = new mongoose.Schema({
                 type: String,
                 enum: ['test', 'interview', 'practical']
             },
-            schedule: {
+            schedule: { 
                 date: Date,
                 venue: String,
                 status: {
