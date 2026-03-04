@@ -25,21 +25,26 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Upload Build Files to EC2
+      - name: Upload Backend Files
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "dist/*"
+          source: |
+            dist/*
+            package.json
+            package-lock.json
+            .env
           target: ${{ secrets.APP_DIR }}
 
-      - name: Restart Nginx
+      - name: Install Production Dependencies & Restart Service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo systemctl restart nginx
+            cd ${{ secrets.APP_DIR }}
+            npm install --production
             sudo systemctl restart heber-admission.service
