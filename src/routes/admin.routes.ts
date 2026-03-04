@@ -6,54 +6,150 @@ import programsModel from "../models/programs.model";
 const router = Router();
 
 /**
- * GET Applications by Department + Program Code
+ * GET Applications by Program Code
  * Example:
- * /api/applications/UG/UG-BSC-ND
+ * /api/applications/UG-BSC-ND
  */
+
+// router.get(
+//   "/applications/:programCode",
+//   async (req: Request, res: Response) => {
+//     try {
+
+//       const { programCode } = req.params;
+
+//       /* STEP 1: Check Program Exists */
+
+//       const program = await programsModel.findOne({
+//         program_code: programCode 
+//       });
+
+//       if (!program) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Invalid program code"
+//         });
+//       }
+
+//       /* STEP 2: Fetch Applications */
+
+//       const applications = await CandidateAdmission.find(
+//         {
+//           "application_preferences.applications.program_code": programCode
+//         },
+//         {
+//           registration_number: 1,
+//           personal_details: 1,
+//           academic_background: 1,
+//           documents: 1,
+//           application_preferences: {
+//             $elemMatch: { program_code: programCode }
+//           }
+//         }
+//       );
+
+//       return res.status(200).json({
+//         success: true,
+//         program: {
+//           program_code: program.program_code,
+//           program_name: program.program_name,
+//           department_name: program.department_name,
+//           stream: program.stream,
+//           shift: program.shift
+//         },
+//         total_applications: applications.length,
+//         data: applications
+//       });
+
+//     } catch (error) {
+//       console.error("Error:", error);
+//       return res.status(500).json({
+//         success: false,
+//         message: "Server Error"
+//       });
+//     }
+//   }
+// );
+
 router.get(
-  "/applications/:departmentCode/:programCode",
+  "/applications/:programCode/:stream",
   async (req: Request, res: Response) => {
     try {
-      const { departmentCode, programCode } = req.params;
 
-      /* -------------------------------------------------
-         STEP 1: Check Program exists under department
-      ------------------------------------------------- */
+      const { programCode, stream } = req.params;
+
+      /* STEP 1: Check Program Exists */
 
       const program = await programsModel.findOne({
-        department_code: departmentCode,
-        program_code: programCode,
-        show: true
+        program_code: programCode
       });
 
       if (!program) {
         return res.status(400).json({
           success: false,
-          message: "Invalid department code or program code"
+          message: "Invalid program code"
         });
       }
 
-      /* -------------------------------------------------
-         STEP 2: Fetch Applications
-      ------------------------------------------------- */
+      /* STEP 2: Fetch Applications */
 
-      const applications = await CandidateAdmission.find(
+      const applications = await CandidateAdmission.aggregate([
+
+        // Find candidates who applied for the program
         {
-          "application_preferences.applications": {
-            $elemMatch: {
-              program_code: programCode
+          $match: {
+            "application_preferences.applications.program_code": programCode
+          }
+        },
+
+        // Extract only applications of this program
+        {
+          $addFields: {
+            filteredApps: {
+              $filter: {
+                input: "$application_preferences.applications",
+                as: "app",
+                cond: {
+                  $eq: ["$$app.program_code", programCode]
+                }
+              }
             }
           }
         },
+
+        // Select application based on stream condition
         {
-          registration_number: 1,
-          personal_details: 1,
-          academic_background: 1,
-          documents: 1,
-          "application_preferences.applications.$": 1,
-          updatedAt: 1
+          $addFields: {
+            selectedApplication: {
+              $cond: {
+                if: { $gt: [{ $size: "$filteredApps" }, 1] },
+                then: {
+                  $filter: {
+                    input: "$filteredApps",
+                    as: "fa",
+                    cond: {
+                      $eq: ["$$fa.stream", stream]
+                    }
+                  }
+                },
+                else: "$filteredApps"
+              }
+            }
+          }
+        },
+
+        // Final projection
+        {
+          $project: {
+            registration_number: 1,
+            personal_details: 1,
+            academic_background: 1,
+            documents: 1,
+            applications: { $arrayElemAt: ["$selectedApplication", 0] }
+          }
         }
-      );
+
+      ]);
 
       return res.status(200).json({
         success: true,
@@ -77,7 +173,6 @@ router.get(
     }
   }
 );
-
 
 /**
  * @route PUT /api/admin/candidates/status/:candidateId
@@ -145,8 +240,8 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     }
 
     // Valid stream values in enum
-    const validStreamValues = ['Aided', 'Self-Finance', 'Self Finance'];
-    
+    const validStreamValues = ['Aided', 'Self-Finance'];
+
     // Check if user stream is valid
     if (!validStreamValues.includes(user.stream)) {
       return res.status(400).json({
@@ -165,7 +260,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
 
     // Valid shift values
     const validShiftValues = ['Shift-1', 'Shift-2'];
-    
+
     // Check if user shift is valid
     if (!validShiftValues.includes(user.shift)) {
       return res.status(400).json({
@@ -265,10 +360,10 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
         // Add stream change information in remarks if changed
         if (isStreamChanged) {
           const streamChangeNote = `[Stream Changed: Applied for ${originalStream}, Admitted to ${admissionStream}]`;
-          updatedApp.selection_remarks = updatedApp.selection_remarks 
+          updatedApp.selection_remarks = updatedApp.selection_remarks
             ? `${streamChangeNote} ${updatedApp.selection_remarks}`
             : streamChangeNote;
-          
+
           // Also store in a dedicated field for easy tracking
           updatedApp.stream_change_history = updatedApp.stream_change_history || [];
           updatedApp.stream_change_history.push({
@@ -330,8 +425,8 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     // Success response with stream change info
     res.status(200).json({
       success: true,
-      message: isStreamChanged 
-        ? `Candidate admitted to ${admissionStream} (originally applied for ${originalStream})` 
+      message: isStreamChanged
+        ? `Candidate admitted to ${admissionStream} (originally applied for ${originalStream})`
         : 'Candidate status updated successfully',
       data: {
         candidate: {
