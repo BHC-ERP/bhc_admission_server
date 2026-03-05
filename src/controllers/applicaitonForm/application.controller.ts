@@ -301,7 +301,6 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
                 ug_applications: applications?.filter(app => app.application_type === 'UG').length,
                 pg_applications: applications?.filter(app => app.application_type === 'PG').length,
                 preferred_programs: applications?.sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
-                    .slice(0, 3)
                     .map(app => ({
                         application_number: app.application_number,
                         application_type: app.application_type,
