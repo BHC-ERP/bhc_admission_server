@@ -745,6 +745,27 @@ export const bankDetailsController = async (req: Request, res: Response) => {
         console.error("Error saving bank details:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
+}; 
+
+// Check MobileNumber 
+export const checkmobile_number = async (req: Request, res: Response) => {
+    try {
+        const { mobile } = req.params;
+
+        const isMobile = await CandidateAdmission.findOne({ "personal_details.phone": mobile });
+
+        if (isMobile) {
+            return res.status(200).json({ message: "Already Having this Number" });
+        }
+        return res.status(200).json({
+            message: "New Number",
+            isMobile: false,
+        });
+
+    } catch (error) {
+        console.error("Already having this Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
 };
 
 // POST /category_facilities

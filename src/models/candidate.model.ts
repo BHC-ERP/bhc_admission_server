@@ -111,12 +111,7 @@ const CandidateSchema = new mongoose.Schema({
 
     /* ==================== ADDRESS ==================== */
     address: {
-        present_address: {
-            type: {
-                type: String,
-                enum: ['residential', 'commercial', 'other'],
-                default: 'residential'
-            },
+        present_address: { 
             door_no: String,
             street: String,
             area: String,
@@ -282,7 +277,6 @@ const CandidateSchema = new mongoose.Schema({
     parents: {
         father_title: {
             type: String,
-            enum: ['Mr', 'Late']
         },
         father_name: String,
         father_mobile: String,
@@ -290,7 +284,6 @@ const CandidateSchema = new mongoose.Schema({
         father_income: String,
         mother_title: {
             type: String,
-            enum: ['Mrs', 'Ms', 'Late']
         },
         mother_name: String,
         mother_mobile: String,
