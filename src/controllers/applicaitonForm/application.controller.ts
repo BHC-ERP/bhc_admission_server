@@ -191,8 +191,9 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             .lean();
 
         if (!candidate) {
-            return res.status(404).json({ message: "Candidate not found" });
+            return res.status(404).json({ message: "Candidate not found", data: candidate });
         }
+
 
         // Calculate personal details completion percentage
         const personalDetails = candidate.personal_details || {};
@@ -211,11 +212,15 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         };
 
         // Check application preferences to determine program types
-        const applications = candidate.application_preferences?.applications || [];
+        const applications = candidate.application_preferences?.applications;
+
+        if (!applications) {
+            res.status(404).json({ message: 'No Applicaiton Found' })
+        }
 
         // Determine if any applications are UG or PG
-        const hasUGApplication = applications.some(app => app.application_type === 'UG');
-        const hasPGApplication = applications.some(app => app.application_type === 'PG');
+        const hasUGApplication = applications!.some(app => app.application_type === 'UG');
+        const hasPGApplication = applications!.some(app => app.application_type === 'PG');
 
         // Get academic marks from academic_background
         if (candidate.academic_background) {
@@ -292,12 +297,10 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             },
             // Application summary for quick view
             application_summary: {
-                total_applications: applications.length,
-                ug_applications: applications.filter(app => app.application_type === 'UG').length,
-                pg_applications: applications.filter(app => app.application_type === 'PG').length,
-                preferred_programs: applications
-                    .sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
-                    .slice(0, 3)
+                total_applications: applications?.length,
+                ug_applications: applications?.filter(app => app.application_type === 'UG').length,
+                pg_applications: applications?.filter(app => app.application_type === 'PG').length,
+                preferred_programs: applications?.sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
                     .map(app => ({
                         application_number: app.application_number,
                         application_type: app.application_type,
@@ -743,6 +746,27 @@ export const bankDetailsController = async (req: Request, res: Response) => {
 
     } catch (error) {
         console.error("Error saving bank details:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+}; 
+
+// Check MobileNumber 
+export const checkmobile_number = async (req: Request, res: Response) => {
+    try {
+        const { mobile } = req.params;
+
+        const isMobile = await CandidateAdmission.findOne({ "personal_details.phone": mobile });
+
+        if (isMobile) {
+            return res.status(200).json({ message: "Already Having this Number" });
+        }
+        return res.status(200).json({
+            message: "New Number",
+            isMobile: false,
+        });
+
+    } catch (error) {
+        console.error("Already having this Number", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

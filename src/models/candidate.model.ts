@@ -111,12 +111,7 @@ const CandidateSchema = new mongoose.Schema({
 
     /* ==================== ADDRESS ==================== */
     address: {
-        present_address: {
-            type: {
-                type: String,
-                enum: ['residential', 'commercial', 'other'],
-                default: 'residential'
-            },
+        present_address: { 
             door_no: String,
             street: String,
             area: String,
@@ -158,7 +153,7 @@ const CandidateSchema = new mongoose.Schema({
         programmeName: String,
         school_education: {
             is_first_generation_learner: { type: Boolean, default: false },
-                emis_number: String,
+            emis_number: String,
             tenth: {
                 board: String,
                 school_name: String,
@@ -168,7 +163,7 @@ const CandidateSchema = new mongoose.Schema({
                     enum: ['Government', 'Government Aided', 'Private', 'CBSE', 'ICSE', 'Other']
                 },
                 medium: String,
-             
+
                 school_address_details: {
                     country: { type: String, default: 'India' },
                     state: String,
@@ -178,7 +173,12 @@ const CandidateSchema = new mongoose.Schema({
                 year_of_passing: {
                     type: Number,
                     min: 1950,
-                    max: () => new Date().getFullYear()
+                    validate: {
+                        validator: function (value: any) {
+                            return value <= new Date().getFullYear() - 2;
+                        },
+                        message: (props: any) => `${props.value} is greater than current year`
+                    }
                 },
                 attempts: { type: Number, min: 1, default: 1 },
                 marks: {
@@ -196,7 +196,7 @@ const CandidateSchema = new mongoose.Schema({
                     enum: ['Government', 'Government Aided', 'Private', 'CBSE', 'ICSE', 'Other']
                 },
                 medium: String,
-            
+
                 register_number: String,
                 school_address_details: {
                     country: { type: String, default: 'India' },
@@ -207,7 +207,12 @@ const CandidateSchema = new mongoose.Schema({
                 year_of_passing: {
                     type: Number,
                     min: 1950,
-                    max: () => new Date().getFullYear()
+                    validate: {
+                        validator: function (value: any) {
+                            return value <= new Date().getFullYear();
+                        },
+                        message: (props: any) => `${props.value} is greater than current year`
+                    }
                 },
                 attempts: { type: Number, min: 1, default: 1 },
                 group: String,
@@ -282,7 +287,6 @@ const CandidateSchema = new mongoose.Schema({
     parents: {
         father_title: {
             type: String,
-            enum: ['Mr', 'Late']
         },
         father_name: String,
         father_mobile: String,
@@ -290,7 +294,6 @@ const CandidateSchema = new mongoose.Schema({
         father_income: String,
         mother_title: {
             type: String,
-            enum: ['Mrs', 'Ms', 'Late']
         },
         mother_name: String,
         mother_mobile: String,
@@ -360,7 +363,7 @@ const CandidateSchema = new mongoose.Schema({
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Draft','Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED','DIRECT_ADMIT',  'SMS_SENT', 'NOT_SELECTED','ADMISSION','ADMIT']
+                enum: ['Draft', 'Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT', 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT']
             },
             admission_details: {
                 admit_status: {
@@ -382,7 +385,7 @@ const CandidateSchema = new mongoose.Schema({
                 type: String,
                 enum: ['test', 'interview', 'practical']
             },
-            schedule: { 
+            schedule: {
                 date: Date,
                 venue: String,
                 status: {
