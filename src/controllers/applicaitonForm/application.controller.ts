@@ -191,8 +191,9 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             .lean();
 
         if (!candidate) {
-            return res.status(404).json({ message: "Candidate not found" });
+            return res.status(404).json({ message: "Candidate not found", data: candidate });
         }
+
 
         // Calculate personal details completion percentage
         const personalDetails = candidate.personal_details || {};
@@ -297,7 +298,6 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
                 pg_applications: applications.filter(app => app.application_type === 'PG').length,
                 preferred_programs: applications
                     .sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
-                    .slice(0, 3)
                     .map(app => ({
                         application_number: app.application_number,
                         application_type: app.application_type,
