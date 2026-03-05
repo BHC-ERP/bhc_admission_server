@@ -344,7 +344,7 @@ export const candidateSignup = async (
                     pincode: ""
                 },
                 permanent_address: {
-                    same_as_present: true,
+                    same_as_present: false,
                     country: "India"
                 }
             },
