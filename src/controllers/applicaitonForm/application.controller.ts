@@ -212,11 +212,15 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         };
 
         // Check application preferences to determine program types
-        const applications = candidate.application_preferences?.applications || [];
+        const applications = candidate.application_preferences?.applications;
+
+        if (!applications) {
+            res.status(404).json({ message: 'No Applicaiton Found' })
+        }
 
         // Determine if any applications are UG or PG
-        const hasUGApplication = applications.some(app => app.application_type === 'UG');
-        const hasPGApplication = applications.some(app => app.application_type === 'PG');
+        const hasUGApplication = applications!.some(app => app.application_type === 'UG');
+        const hasPGApplication = applications!.some(app => app.application_type === 'PG');
 
         // Get academic marks from academic_background
         if (candidate.academic_background) {
@@ -293,11 +297,11 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             },
             // Application summary for quick view
             application_summary: {
-                total_applications: applications.length,
-                ug_applications: applications.filter(app => app.application_type === 'UG').length,
-                pg_applications: applications.filter(app => app.application_type === 'PG').length,
-                preferred_programs: applications
-                    .sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
+                total_applications: applications?.length,
+                ug_applications: applications?.filter(app => app.application_type === 'UG').length,
+                pg_applications: applications?.filter(app => app.application_type === 'PG').length,
+                preferred_programs: applications?.sort((a, b) => (a.preference_order || 999) - (b.preference_order || 999))
+                    .slice(0, 3)
                     .map(app => ({
                         application_number: app.application_number,
                         application_type: app.application_type,
