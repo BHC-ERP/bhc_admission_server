@@ -8,6 +8,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Opt into Node.js 24 for all actions to resolve the deprecation warning
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout Code
@@ -25,7 +28,7 @@ jobs:
         run: npm run build
 
       - name: Upload Backend Files
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.6
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -43,4 +46,5 @@ jobs:
             cd ${{ secrets.APP_DIR }}
             npm install --production
             sudo systemctl restart heber-admission.service
+
 
