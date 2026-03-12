@@ -5,7 +5,7 @@ import { signToken } from "../../utils/jwt";
 import programsModel from "../../models/programs.model";
 import CandidateAdmission from "../../models/candidate.model";
 import { createCandidateWithRetry, getNextRegistrationNumber } from "../../utils/getNextRegistrationNumber";
-import { getNextApplicationNumbers } from "../../models/auth/ApplicationCounter.model";
+import { ApplicationCounter, getNextApplicationNumbers } from "../../models/auth/ApplicationCounter.model";
 
 
 // Types and Interfaces
@@ -53,7 +53,7 @@ interface PersonalDetails {
     application_info: ApplicationInfo;
 }
 
-interface SignupRequest {
+export interface SignupRequest {
     personal_details: PersonalDetails;
     selected_courses?: Array<{
         course: {
@@ -659,3 +659,5 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
         });
     }
 };
+
+ 

@@ -11,6 +11,12 @@ export const env = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
   SESSION_SECRET: process.env.SESSION_SECRET || "session_secret_key",
   CLIENT_URL: process.env.CLIENT_URL!,
+  BASE_URL: process.env.BASE_URL!,
   MAIL_USER: process.env.MAIL_USER || 'bishophebercollegeweb@gmail.com',
-  MAIL_PASS: process.env.MAIL_PASS || 'qnxcfbldushagbih'
+  MAIL_PASS: process.env.MAIL_PASS || 'qnxcfbldushagbih',
+  CCAVENUE_MERCHANT_ID: process.env.CCAVENUE_MERCHANT_ID!,
+  CCAVENUE_ACCESS_CODE: process.env.CCAVENUE_ACCESS_CODE!,
+  CCAVENUE_WORKING_KEY: process.env.CCAVENUE_WORKING_KEY!,
+  CCAVENUE_PAYMENT_URL: process.env.CCAVENUE_PAYMENT_URL || 'https://test.ccavenue.com/transaction/transaction.do?command=initiateTransaction',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173'
 };

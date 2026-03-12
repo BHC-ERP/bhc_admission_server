@@ -17,6 +17,8 @@ router.post("/forgot-registration", findRegistrationNumber);
 router.post("/logout", logout);
 //payment
 router.post("/simulate-payment", paymentSimulation);
+router.post("/payment/ccavenue/initiate", paymentSimulation);
+
 // Department routes
 router.post("/department/login", departmentLogin);
 
