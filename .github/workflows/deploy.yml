@@ -28,7 +28,8 @@ jobs:
         run: npm run build
 
       - name: Upload Backend Files
-        uses: appleboy/scp-action@v1.0.6
+        uses: appleboy/scp-action@v1
+
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
