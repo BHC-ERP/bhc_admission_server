@@ -7,12 +7,14 @@ import uploadRoutes from "./upload.routes";
 import application_form from "./applicationform.routes";
 import visitorRoutes from "./visitor.routes";
 import adminRoutes from "./admin.routes";
+import paymentRoutes from './payment.routes'
 
 const router = Router();
 
 router.get("/health", healthCheck);
 
 router.use("/auth", authRoutes);
+router.use("/secure", paymentRoutes)
 router.use("/application_form", application_form);
 router.use("/admin", adminRoutes);
 router.use("/protected", protectedRoutes);
