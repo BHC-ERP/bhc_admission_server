@@ -588,152 +588,75 @@ export const logout = (req: Request, res: Response): void => {
     });
 };
 
-// export const paymentSimulation = async (req: Request, res: Response): Promise<Response> => {
-//     try {
-//         const { candidateDetails, amount } = req.body;
-//         let simulateType = req.body.simulateType;
-
-//         if (amount === 0) {
-//             simulateType = "success";
-//         }
-
-//         if (!candidateDetails || !simulateType) {
-//             return res.status(400).json({
-//                 message: "Candidate details, amount, and simulateType are required"
-//             });
-//         }
-
-//         if (freeCommunities.includes(candidateDetails.personal_details.basic_info.community) || candidateDetails.personal_details.basic_info.is_nri === true) {
-//             simulateType = "success";
-//         }
-
-//         if (simulateType === "success") {
-//             // Transform the data to match signup expectations with all required fields
-//             const applicationInfo = candidateDetails.personal_details.application_info;
-
-//             const transformedBody = {
-//                 personal_details: {
-//                     basic_info: candidateDetails.personal_details.basic_info,
-//                     contact_info: candidateDetails.personal_details.contact_info,
-//                     application_info: {
-//                         application_count: applicationInfo.application_count,
-//                         application_type: applicationInfo.application_type,
-//                         program_code: applicationInfo.program_codes, // Rename to program_code
-//                         program_names: applicationInfo.program_names, // Include for later use
-//                         program_streams: applicationInfo.program_streams // Include for later use
-//                     }
-//                 },
-//                 selected_courses: candidateDetails.selected_courses,
-//                 payment_details: {
-//                     ...candidateDetails.payment_details,
-//                     payment_method: "ccavenue", // Fix payment method
-//                     amount_paid: amount,
-//                     status: "success",
-//                     transaction_id: `TXN${Date.now()}`,
-//                     transaction_date: new Date().toISOString()
-//                 }
-//             };
-
-//             const signupReq = {
-//                 ...req,
-//                 body: transformedBody
-//             } as Request<{}, {}, SignupRequest>;
-
-//             return await candidateSignup(signupReq, res);
-
-//         } else if (simulateType === "failure") {
-//             return res.status(400).json({
-//                 message: "Payment failed",
-//                 status: "failed"
-//             });
-//         } else {
-//             return res.status(400).json({
-//                 message: "Invalid simulateType. Must be 'success' or 'failure'"
-//             });
-//         }
-
-//     } catch (err) {
-//         console.error("Payment simulation error:", err);
-//         return res.status(500).json({
-//             message: "Server error during payment simulation"
-//         });
-//     }
-// };
-
-
-const ccav = require("../ccavenue/ccavutil");
-export const paymentSimulation = async (req: Request, res: Response) => {
+export const paymentSimulation = async (req: Request, res: Response): Promise<Response> => {
     try {
-        console.log("===== CCAvenue Payment Debug Start =====");
+        const { candidateDetails, amount } = req.body;
+        let simulateType = req.body.simulateType;
 
-        const workingKey = "6641B134C9DF2FE6C157DFED2F4715E4";
-        const accessCode = "ATDC87NA75BU24CDUB";
- 
+        if (amount === 0) {
+            simulateType = "success";
+        }
 
-        const data: Record<string, string> = {
-            tid: "12345678",
-            merchant_id: "4421322",
-            order_id: "202600001",
-            amount: "1.00",
-            currency: "INR",
-            redirect_url: "http://localhost:5173/candidate/dashboard",
-            cancel_url: "http://localhost:5173/404",
-            language: "EN"
-        };
+        if (!candidateDetails || !simulateType) {
+            return res.status(400).json({
+                message: "Candidate details, amount, and simulateType are required"
+            });
+        }
 
-        console.log("Payment Data Object:");
-        console.log(data);
+        if (freeCommunities.includes(candidateDetails.personal_details.basic_info.community) || candidateDetails.personal_details.basic_info.is_nri === true) {
+            simulateType = "success";
+        }
 
-        // Convert object → query string
-        const queryString = Object.entries(data)
-            .map(([key, value]) => `${key}=${value}`)
-            .join("&");
+        if (simulateType === "success") {
+            // Transform the data to match signup expectations with all required fields
+            const applicationInfo = candidateDetails.personal_details.application_info;
 
-        console.log("Generated Query String:");
-        console.log(queryString);
+            const transformedBody = {
+                personal_details: {
+                    basic_info: candidateDetails.personal_details.basic_info,
+                    contact_info: candidateDetails.personal_details.contact_info,
+                    application_info: {
+                        application_count: applicationInfo.application_count,
+                        application_type: applicationInfo.application_type,
+                        program_code: applicationInfo.program_codes, // Rename to program_code
+                        program_names: applicationInfo.program_names, // Include for later use
+                        program_streams: applicationInfo.program_streams // Include for later use
+                    }
+                },
+                selected_courses: candidateDetails.selected_courses,
+                payment_details: {
+                    ...candidateDetails.payment_details,
+                    payment_method: "ccavenue", // Fix payment method
+                    amount_paid: amount,
+                    status: "success",
+                    transaction_id: `TXN${Date.now()}`,
+                    transaction_date: new Date().toISOString()
+                }
+            };
 
-        // Encrypt request
-        const encRequest = ccav.encrypt(queryString, workingKey);
+            const signupReq = {
+                ...req,
+                body: transformedBody
+            } as Request<{}, {}, SignupRequest>;
 
-        console.log("Encrypted Request Generated:");
-        console.log(encRequest);
+            return await candidateSignup(signupReq, res);
 
-        const html = `
-    <html>
-    <body>
-      <h3>Redirecting to CCAvenue...</h3>
-      <form id="ccavenueForm" method="post"
-        action="https://test.ccavenue.com/transaction/transaction.do?command=initiateTransaction">
-
-        <input type="hidden" name="encRequest" value="${encRequest}" />
-        <input type="hidden" name="access_code" value="${accessCode}" />
-
-      </form>
-
-      <script>
-        console.log("Submitting payment form to CCAvenue...");
-        document.getElementById("ccavenueForm").submit();
-      </script>
-    </body>
-    </html>
-    `;
-
-        console.log("Generated HTML Form:");
-        console.log(html);
-
-        console.log("===== Redirecting to CCAvenue =====");
-
-        res.send(html);
+        } else if (simulateType === "failure") {
+            return res.status(400).json({
+                message: "Payment failed",
+                status: "failed"
+            });
+        } else {
+            return res.status(400).json({
+                message: "Invalid simulateType. Must be 'success' or 'failure'"
+            });
+        }
 
     } catch (err) {
-        console.error("===== CCAvenue Payment Error =====");
-        console.error(err);
-
-        res.status(500).json({
-            message: "Server error during payment simulation",
-            error: err
+        console.error("Payment simulation error:", err);
+        return res.status(500).json({
+            message: "Server error during payment simulation"
         });
     }
 };
 
- 
