@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install Dependencies
         run: npm install
@@ -34,7 +34,7 @@ jobs:
           target: ${{ secrets.APP_DIR }}
 
       - name: Install Production Dependencies & Restart Service
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -43,3 +43,4 @@ jobs:
             cd ${{ secrets.APP_DIR }}
             npm install --production
             sudo systemctl restart heber-admission.service
+
