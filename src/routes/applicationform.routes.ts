@@ -31,7 +31,8 @@ import {
   getCategoryFacilitiesController,
   getDocumentController,
   fromSubmitController,
-  checkmobile_number
+  checkmobile_number,
+  checkCommunityNumber
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -82,6 +83,7 @@ router.post("/parents_details", parentsDetailsController);
 router.post("/bank_details", bankDetailsController);
 router.post("/category_facilities", categoryFacilitiesController);
 router.get("/check_mobile/:mobile", checkmobile_number);
+router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
 
 // ==================== DOCUMENT UPLOAD ROUTES ====================
 router.post(

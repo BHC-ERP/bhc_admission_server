@@ -76,6 +76,10 @@ const CandidateSchema = new mongoose.Schema({
         community: {
             type: String,
         },
+        community_number:{
+            type: String,
+            unique: true
+        },
         bloodGroup: {
             type: String,
             enum: [

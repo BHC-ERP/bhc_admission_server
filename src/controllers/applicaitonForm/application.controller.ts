@@ -770,7 +770,26 @@ export const checkmobile_number = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+// Check CommunityNumber 
+export const checkCommunityNumber = async (req: Request, res: Response) => {
+    try {
+        const { communityNumber } = req.params;
 
+        const iscommunityNumber = await CandidateAdmission.findOne({ "personal_details.community_number": communityNumber });
+
+        if (iscommunityNumber) {
+            return res.status(200).json({ message: "Already Having this Community Number" });
+        }
+        return res.status(200).json({
+            message: "New Community Number",
+            iscommunityNumber: false,
+        });
+
+    } catch (error) {
+        console.error("Already having this Community Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
 // POST /category_facilities
 export const categoryFacilitiesController = async (req: Request, res: Response) => {
     try {

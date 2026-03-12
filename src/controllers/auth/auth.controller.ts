@@ -317,6 +317,7 @@ export const candidateSignup = async (
                 email: personal_details.contact_info.email,
                 phone: personal_details.contact_info.mobile,
                 community: personal_details.basic_info.community == "Others" ? personal_details.basic_info.other_community : personal_details.basic_info.community,
+                community_number: personal_details.basic_info.community_number,
                 nationality: personal_details.basic_info.is_nri ? "Outside Indian" : "Indian",
             },
             application_preferences: {
