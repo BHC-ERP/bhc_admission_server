@@ -68,20 +68,20 @@ router.get("/caste_list", casteListController);
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
 
 // ====================GET APPLICATION FORM ROUTES ====================
-router.get("/personal_details", getPersonalDataController);
-router.get("/parents_details", getParentsDetailsController);
-router.get("/address", getAddressController);
-router.get("/academic_background", getAcademicBackgroundController);
-router.get("/higher_education", getBankDetailsController);
-router.get("/category_facilities", getCategoryFacilitiesController);
-router.get("/documents", getDocumentController);
+router.get("/personal_details/:regId", getPersonalDataController);
+router.get("/parents_details/:regId", getParentsDetailsController);
+router.get("/address/:regId", getAddressController);
+router.get("/academic_background/:regId", getAcademicBackgroundController);
+router.get("/higher_education/:regId", getBankDetailsController);
+router.get("/category_facilities/:regId", getCategoryFacilitiesController);
+router.get("/documents/:regId", getDocumentController);
 // ==================== APPLICATION FORM ROUTES ====================
-router.post("/personal_details", personalDetailsController);
-router.post("/address", addressController);
-router.post("/academic_background", academicBackgroundController);
-router.post("/parents_details", parentsDetailsController);
-router.post("/bank_details", bankDetailsController);
-router.post("/category_facilities", categoryFacilitiesController);
+router.post("/personal_details/:regId", personalDetailsController);
+router.post("/address/:regId", addressController);
+router.post("/academic_background/:regId", academicBackgroundController);
+router.post("/parents_details/:regId", parentsDetailsController);
+router.post("/bank_details/:regId", bankDetailsController);
+router.post("/category_facilities/:regId", categoryFacilitiesController);
 router.get("/check_mobile/:mobile", checkmobile_number);
 router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
 
