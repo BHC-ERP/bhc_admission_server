@@ -114,38 +114,42 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== ADDRESS ==================== */
-    address: {
-        present_address: { 
-            door_no: String,
-            street: String,
-            area: String,
-            landmark: String,
-            village_town: String,
-            taluk: String,
-            district: String,
-            state: String,
-            country: { type: String, default: 'India' },
-            pincode: {
-                type: String,
-                match: [/^\d{6}$/, "Invalid pincode"],
-                sparse: true
-            }
-        },
-        permanent_address: {
-            same_as_present: { type: Boolean, default: false },
-            door_no: String,
-            street: String,
-            area: String,
-            landmark: String,
-            village_town: String,
-            taluk: String,
-            district: String,
-            state: String,
-            country: { type: String, default: 'India' },
-            pincode: String,
-            domicile_state: String
-        }
+address: {
+  present_address: {
+    door_no: String,
+    street: String,
+    village_town: String,
+    district: String,
+    state: String,
+    country: { type: String, default: "India" },
+    pincode: {
+      type: String,
+      match: [/^\d{6}$/, "Invalid pincode"]
     },
+    type: {
+      type: String,
+      enum: ["Urban", "Rural"]
+    }
+  },
+
+  permanent_address: {
+    same_as_present: Boolean,
+    door_no: String,
+    street: String,
+    village_town: String,
+    district: String,
+    state: String,
+    country: { type: String, default: "India" },
+    pincode: {
+      type: String,
+      match: [/^\d{6}$/, "Invalid pincode"]
+    },
+    type: {
+      type: String,
+      enum: ["Urban", "Rural"]
+    }
+  }
+},
 
     /* ==================== ACADEMIC BACKGROUND ==================== */
     academic_background: {
@@ -308,7 +312,9 @@ const CandidateSchema = new mongoose.Schema({
             guardian_name: String,
             guardian_mobile: String,
             guardian_relation: String,
-            is_orphan: { type: Boolean, default: false }
+            is_orphan: { type: Boolean, default: false },
+            is_semi_orphan: { type: Boolean, default: false },
+            is_deserted: { type: Boolean, default: false }
         }
     },
 
