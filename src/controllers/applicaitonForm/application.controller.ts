@@ -326,8 +326,8 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
 
 export const getPersonalDataController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("personal_details").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("personal_details").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -342,8 +342,8 @@ export const getPersonalDataController = async (req: Request, res: Response) => 
 
 export const getParentsDetailsController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("parents").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("parents").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -358,8 +358,8 @@ export const getParentsDetailsController = async (req: Request, res: Response) =
 
 export const getAddressController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("address").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("address").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -374,8 +374,8 @@ export const getAddressController = async (req: Request, res: Response) => {
 
 export const getAcademicBackgroundController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("academic_background").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("academic_background").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -390,8 +390,8 @@ export const getAcademicBackgroundController = async (req: Request, res: Respons
 
 export const getBankDetailsController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("bank_details").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("bank_details").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -406,8 +406,8 @@ export const getBankDetailsController = async (req: Request, res: Response) => {
 
 export const getCategoryFacilitiesController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("category_and_facilities").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("category_and_facilities").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -422,8 +422,8 @@ export const getCategoryFacilitiesController = async (req: Request, res: Respons
 };
 export const getDocumentController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
-        const candidate = await CandidateAdmission.findById(userId).select("documents").lean();
+        const regId = req.params.regId;
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("documents").lean();
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -441,7 +441,7 @@ export const getDocumentController = async (req: Request, res: Response) => {
 export const personalDetailsController = async (req: Request, res: Response) => {
     try {
         const personalDetails = req.body;
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
         // Validate required fields
         const requiredFields = ['fullName', 'dateOfBirth', 'gender', 'email', 'phone'];
@@ -459,12 +459,12 @@ export const personalDetailsController = async (req: Request, res: Response) => 
 
 
         // Update candidate with personal details
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     personal_details: personalDetails,
-                    "metadata.last_modified_by": userId,
+                    "metadata.last_modified_by": regId,
                     "metadata.ip_address": req.ip || req.socket.remoteAddress,
                     "metadata.user_agent": req.get("user-agent") || "Unknown"
                 }
@@ -493,7 +493,7 @@ export const personalDetailsController = async (req: Request, res: Response) => 
 export const addressController = async (req: Request, res: Response) => {
     try {
         const addressData = req.body;
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
         // Validate address structure
         if (!addressData.present_address || !addressData.permanent_address) {
@@ -521,9 +521,9 @@ export const addressController = async (req: Request, res: Response) => {
         }
 
         // Update candidate with address details
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
-            { $set: { address: addressData, "metadata.last_modified_by": userId } },
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
+            { $set: { address: addressData, "metadata.last_modified_by": regId } },
             { new: true, runValidators: true }
         ).select("address");
 
@@ -547,7 +547,7 @@ export const addressController = async (req: Request, res: Response) => {
 // POST /academic_background
 export const academicBackgroundController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
         const academicData = req.body;
         const currentYear = new Date().getFullYear();
 
@@ -608,12 +608,12 @@ export const academicBackgroundController = async (req: Request, res: Response) 
         }
 
         // Update candidate
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     academic_background: academicData,
-                    "metadata.last_modified_by": userId
+                    "metadata.last_modified_by": regId
                 }
             },
             { new: true, runValidators: false }
@@ -640,7 +640,7 @@ export const academicBackgroundController = async (req: Request, res: Response) 
 export const parentsDetailsController = async (req: Request, res: Response) => {
     try {
         const parentsData = req.body;
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
         // Validate guardian information
         if (parentsData.guardian?.is_guardian) {
@@ -668,12 +668,12 @@ export const parentsDetailsController = async (req: Request, res: Response) => {
         }
 
         // Update candidate
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     parents: parentsData,
-                    "metadata.last_modified_by": userId
+                    "metadata.last_modified_by": regId
                 }
             },
             { new: true, runValidators: true }
@@ -700,7 +700,7 @@ export const parentsDetailsController = async (req: Request, res: Response) => {
 export const bankDetailsController = async (req: Request, res: Response) => {
     try {
         const bankData = req.body;
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
         // Validate IFSC code
         if (bankData.ifsc_code) {
@@ -722,12 +722,12 @@ export const bankDetailsController = async (req: Request, res: Response) => {
         }
 
         // Update candidate
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     bank_details: bankData,
-                    "metadata.last_modified_by": userId
+                    "metadata.last_modified_by": regId
                 }
             },
             { new: true, runValidators: true }
@@ -748,7 +748,7 @@ export const bankDetailsController = async (req: Request, res: Response) => {
         console.error("Error saving bank details:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
-}; 
+};
 
 // Check MobileNumber 
 export const checkmobile_number = async (req: Request, res: Response) => {
@@ -793,7 +793,7 @@ export const checkCommunityNumber = async (req: Request, res: Response) => {
 // POST /category_facilities
 export const categoryFacilitiesController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
         const categoryData = req.body;
 
         if (!categoryData.category_and_facilities) {
@@ -802,12 +802,12 @@ export const categoryFacilitiesController = async (req: Request, res: Response) 
             });
         }
 
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     category_and_facilities: categoryData.category_and_facilities,
-                    "metadata.last_modified_by": userId
+                    "metadata.last_modified_by": regId
                 }
             },
             { new: true, runValidators: true }
@@ -1074,8 +1074,9 @@ export const getDocumentsByRegNoController = async (req: Request, res: Response)
 export const getDocumentsController = async (req: Request, res: Response) => {
     try {
         const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
-        const candidate = await CandidateAdmission.findById(userId);
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) });
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -1174,9 +1175,9 @@ export const deleteDocumentController = async (req: Request, res: Response) => {
 // POST /documents_submit
 export const submitApplicationController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
-        const candidate = await CandidateAdmission.findById(userId);
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) });
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found" });
         }
@@ -1194,13 +1195,13 @@ export const submitApplicationController = async (req: Request, res: Response) =
         }
 
         // Update candidate status
-        const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $set: {
                     "admission_status.current": "Applied",
                     "metadata.submitted_at": new Date(),
-                    "metadata.last_modified_by": userId,
+                    "metadata.last_modified_by": regId,
                     "metadata.version": (candidate.metadata?.version || 0) + 1
                 }
             },
@@ -1212,8 +1213,8 @@ export const submitApplicationController = async (req: Request, res: Response) =
         }
 
         // Add to status history
-        await CandidateAdmission.findByIdAndUpdate(
-            userId,
+        await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
             {
                 $push: {
                     "admission_status.status_history": {
@@ -1258,9 +1259,9 @@ export const submitApplicationController = async (req: Request, res: Response) =
 // GET /progress
 export const getProgressController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
-        const candidate = await CandidateAdmission.findById(userId)
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) })
             .select("personal_details address academic_background parents bank_details category_and_facilities documents admission_status");
 
         if (!candidate) {
@@ -1275,7 +1276,7 @@ export const getProgressController = async (req: Request, res: Response) => {
             { name: "Bank Details", completed: !!candidate.bank_details && Object.keys(candidate.bank_details).length > 0 },
             { name: "Category & Facilities", completed: !!candidate.category_and_facilities && Object.keys(candidate.category_and_facilities).length > 0 },
             { name: "Documents", completed: !!(candidate.documents?.required_documents?.length && candidate.documents.required_documents.length > 0) },
-            { name: "Submit", completed: candidate.admission_status?.current === "Draft" }
+            { name: "Submit", completed: candidate.admission_status?.current === "Applied" }
         ];
 
         const completedSteps = steps.filter(step => step.completed).length;
@@ -1284,7 +1285,7 @@ export const getProgressController = async (req: Request, res: Response) => {
 
         return res.json({
             registration_number: candidate.registration_number,
-            current_status: candidate.admission_status?.current || "Draft",
+            current_status: candidate.admission_status?.current || "Applied",
             progress: {
                 percentage: Math.round(progressPercentage * 100) / 100,
                 completed_steps: completedSteps,
@@ -1302,9 +1303,9 @@ export const getProgressController = async (req: Request, res: Response) => {
 // GET /data
 export const getFormDataController = async (req: Request, res: Response) => {
     try {
-        const userId = await getSessionUserId(req.cookies.sid);
+        const regId = req.params.regId;
 
-        const candidate = await CandidateAdmission.findById(userId)
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) })
             .select("personal_details address academic_background parents bank_details category_and_facilities documents registration_number admission_status");
 
         if (!candidate) {
@@ -1313,7 +1314,7 @@ export const getFormDataController = async (req: Request, res: Response) => {
 
         return res.json({
             registration_number: candidate.registration_number,
-            current_status: candidate.admission_status?.current || "Draft",
+            current_status: candidate.admission_status?.current || "Applied",
             formData: {
                 personal_details: candidate.personal_details || {},
                 address: candidate.address || {},
