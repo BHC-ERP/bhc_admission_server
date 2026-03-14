@@ -8,7 +8,7 @@ import { env } from '../../config/env';
 const pendingPayments = new Map();
 
 // Free communities list (should match frontend)
-const freeCommunities = ['SC', 'ST', 'OBC', 'EWS'];
+const freeCommunities = ['SC', 'ST', 'SAC'];
 
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
 export const directSaveApplication = async (req: Request, res: Response): Promise<Response> => {
@@ -80,21 +80,69 @@ export const directSaveApplication = async (req: Request, res: Response): Promis
 // Initiate CCAvenue payment
 export const initiateCCAvenuePayment = async (req: Request, res: Response): Promise<Response> => {
     try {
+
+        console.log("=== CCAvenue Payment Initiation Started ===");
+
         const { amount, candidateDetails } = req.body;
 
-        // Double-check exemption cases (security)
-        const isReservedCandidate = freeCommunities.includes(candidateDetails.personal_details.basic_info.community);
-        const isNRI = candidateDetails.personal_details.basic_info.is_nri === true;
+        console.log("Incoming Request Body:", JSON.stringify(req.body, null, 2));
 
-        // If exempted, should not reach here, but just in case
-        if (amount === 0 || isReservedCandidate || isNRI) {
+        if (!candidateDetails) {
+            console.log("❌ candidateDetails missing in request");
             return res.status(400).json({
-                message: "Payment not required for this candidate"
+                message: "Candidate details missing"
             });
         }
 
+        console.log("Candidate Community:", candidateDetails?.personal_details?.basic_info?.community);
+        console.log("Candidate NRI Status:", candidateDetails?.personal_details?.basic_info?.is_nri);
+        console.log("Requested Amount:", amount);
+
+        // Double-check exemption cases (security)
+        const isReservedCandidate = freeCommunities.includes(
+            candidateDetails.personal_details.basic_info.community
+        );
+
+        const isNRI = candidateDetails.personal_details.basic_info.is_nri === true;
+
+        console.log("Reserved Candidate Check:", isReservedCandidate);
+        console.log("NRI Candidate Check:", isNRI);
+
+        // If exempted, should not reach here, but just in case
+        if (amount === 0) {
+            console.log("⚠️ Amount is 0, payment not required");
+        }
+
+        if (isReservedCandidate) {
+            console.log("⚠️ Candidate belongs to reserved community. Payment should be free.");
+        }
+
+        if (isNRI) {
+            console.log("⚠️ Candidate is NRI. Payment should be free.");
+        }
+
+        if (amount === 0 || isReservedCandidate || isNRI) {
+            console.log("❌ Payment request rejected due to exemption condition");
+
+            const responsePayload = {
+                message: "Payment not required for this candidate",
+                debug: {
+                    amount,
+                    isReservedCandidate,
+                    isNRI
+                }
+            };
+
+            console.log("Response JSON:", JSON.stringify(responsePayload, null, 2));
+
+            return res.status(400).json(responsePayload);
+        }
+
+        console.log("✅ Candidate requires payment");
+
         // Generate unique order ID
-        const orderId = `ORD${Date.now()}${Math.floor(Math.random() * 10000)}`;
+        const orderId = `BHC-ADM-${Date.now()}${Math.floor(Math.random() * 10000)}`;
+        console.log("Generated Order ID:", orderId);
 
         // Store pending payment data
         pendingPayments.set(orderId, {
@@ -103,10 +151,15 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             timestamp: new Date().toISOString()
         });
 
+        console.log("Pending payment stored in memory for order:", orderId);
+
         // Set expiration after 1 hour
         setTimeout(() => {
+            console.log("⏳ Payment expired. Removing order:", orderId);
             pendingPayments.delete(orderId);
         }, 60 * 60 * 1000);
+
+        console.log("Generating CCAvenue encrypted request...");
 
         // Generate CCAvenue encrypted request
         const encRequest = generateCCAvenueEncRequest({
@@ -124,53 +177,97 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             billing_address: candidateDetails.personal_details.contact_info.address || 'NA'
         });
 
-        console.log(`Payment initiated: OrderID=${orderId}, Amount=${amount}`);
+        console.log("Encrypted Request Generated Successfully");
 
-        return res.status(200).json({
+        const responsePayload = {
             accessCode: env.CCAVENUE_ACCESS_CODE,
             encRequest: encRequest,
             ccavenueUrl: env.CCAVENUE_PAYMENT_URL
-        });
+        };
+
+        console.log("Returning Payment Initiation Response:");
+        console.log(JSON.stringify(responsePayload, null, 2));
+
+        console.log(`✅ Payment initiated successfully: OrderID=${orderId}, Amount=${amount}`);
+        console.log("=== CCAvenue Payment Initiation Completed ===");
+
+        return res.status(200).json(responsePayload);
 
     } catch (err) {
-        console.error("CCAvenue payment initiation error:", err);
-        return res.status(500).json({
-            message: "Server error during payment initiation"
-        });
+
+        console.error("❌ CCAvenue payment initiation error:", err);
+
+        const errorPayload = {
+            message: "Server error during payment initiation",
+            error: err instanceof Error ? err.message : "Unknown error"
+        };
+
+        console.log("Error Response JSON:", JSON.stringify(errorPayload, null, 2));
+
+        return res.status(500).json(errorPayload);
     }
 };
-
 // Handle CCAvenue payment response (success)
 export const handleCCAvenueResponse = async (req: Request, res: Response): Promise<void> => {
     try {
+
+        console.log("=========== CCAvenue Response Received ===========");
+        console.log("Raw Body:", JSON.stringify(req.body, null, 2));
+
         const { encResp } = req.body;
 
         if (!encResp) {
-            console.error("No encryption response received from CCAvenue");
+            console.error("❌ No encryption response received from CCAvenue");
+
             return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=no_response`);
         }
 
-        // Decrypt the response from CCAvenue
+        console.log("Encrypted Response Length:", encResp.length);
+
+        // Decrypt response
         const decryptedResponse = decryptCCAvenueResponse(encResp);
 
-        // Parse the response
+        console.log("Decrypted Response String:");
+        console.log(decryptedResponse);
+
+        // Parse response
         const responseParams = parseResponse(decryptedResponse);
-        console.log("CCAvenue response parameters:", responseParams);
 
-        const { order_id, order_status, amount, tracking_id, bank_ref_no, failure_message } = responseParams;
+        console.log("Parsed Response Params:");
+        console.log(JSON.stringify(responseParams, null, 2));
 
-        // Retrieve pending payment data
+        const {
+            order_id,
+            order_status,
+            amount,
+            tracking_id,
+            bank_ref_no,
+            failure_message
+        } = responseParams;
+
+        console.log("Order ID:", order_id);
+        console.log("Order Status:", order_status);
+        console.log("Amount:", amount);
+        console.log("Tracking ID:", tracking_id);
+        console.log("Bank Ref No:", bank_ref_no);
+
+        // Retrieve pending payment
         const pendingData = pendingPayments.get(order_id);
 
         if (!pendingData) {
-            console.error(`Invalid order or order expired: ${order_id}`);
+            console.error(`❌ Invalid order or expired order: ${order_id}`);
+
             return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=invalid_order`);
         }
 
+        console.log("Pending Payment Data Found");
+
         const { candidateDetails } = pendingData;
 
-        if (order_status === 'Success') {
-            // Payment successful - save to database
+        if (order_status === "Success") {
+
+            console.log("✅ Payment SUCCESS for order:", order_id);
+
             const applicationInfo = candidateDetails.personal_details.application_info;
 
             const transformedBody = {
@@ -198,69 +295,117 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 }
             };
 
-            // Create a new request object for signup
+            console.log("Transformed Signup Payload:");
+            console.log(JSON.stringify(transformedBody, null, 2));
+
             const signupReq = {
                 ...req,
                 body: transformedBody
             } as Request<{}, {}, SignupRequest>;
 
-            // Call signup function
+            console.log("Calling candidateSignup...");
+
             await candidateSignup(signupReq, {} as Response);
 
-            // Clean up pending data
+            console.log("Candidate Signup Completed");
+
             pendingPayments.delete(order_id);
 
-            // Redirect to success page
-            return res.redirect(`${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success`);
+            console.log("Pending Payment Removed:", order_id);
+
+            console.log("Redirecting to Success Page");
+
+            return res.redirect(
+                `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success`
+            );
 
         } else {
-            // Payment failed
-            console.warn(`Payment failed for order ${order_id}: ${failure_message}`);
+
+            console.warn("❌ Payment FAILED");
+            console.warn("Failure Message:", failure_message);
+
             pendingPayments.delete(order_id);
-            return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=payment_failed&message=${encodeURIComponent(failure_message || 'Payment failed')}`);
+
+            return res.redirect(
+                `${env.FRONTEND_URL}/payment/failure?reason=payment_failed&message=${encodeURIComponent(
+                    failure_message || "Payment failed"
+                )}`
+            );
         }
 
     } catch (err) {
-        console.error("CCAvenue response handling error:", err);
-        return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=server_error`);
+
+        console.error("❌ CCAvenue Response Handling Error:", err);
+
+        return res.redirect(
+            `${env.FRONTEND_URL}/payment/failure?reason=server_error`
+        );
     }
 };
 
 // Handle CCAvenue cancellation
 export const handleCCAvenueCancel = async (req: Request, res: Response): Promise<void> => {
     try {
+
+        console.log("=========== CCAvenue Cancel Received ===========");
+
+        console.log("Request Body:", JSON.stringify(req.body, null, 2));
+
         const { order_id } = req.body;
-        console.log(`Payment cancelled for order: ${order_id}`);
+
+        console.log("Order ID:", order_id);
 
         if (order_id) {
             pendingPayments.delete(order_id);
+            console.log("Pending Payment Removed:", order_id);
         }
 
+        console.log("Redirecting to Cancel Page");
+
         return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=cancelled`);
+
     } catch (err) {
-        console.error("CCAvenue cancel handling error:", err);
+
+        console.error("❌ Cancel Handler Error:", err);
+
         return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=cancel_error`);
     }
 };
-
 // Payment status endpoint
 export const getPaymentStatus = async (req: Request, res: Response): Promise<Response> => {
     try {
+
+        console.log("=========== Payment Status Check ===========");
+
         const { transaction_id } = req.params;
 
-        // Query your database for the payment status
-        // This depends on your database model
-        // const payment = await PaymentModel.findOne({ transaction_id });
+        console.log("Transaction ID:", transaction_id);
 
-        // Placeholder response
+        if (!transaction_id) {
+
+            console.warn("Transaction ID missing");
+
+            return res.status(400).json({
+                status: "error",
+                message: "Transaction ID required"
+            });
+        }
+
+        console.log("Checking database for transaction...");
+
         return res.status(200).json({
-            status: 'pending',
-            message: 'Payment status endpoint - implement with your database'
+            status: "pending",
+            transaction_id,
+            message: "Payment status endpoint - implement with database"
         });
 
     } catch (err) {
-        console.error("Payment status check error:", err);
-        return res.status(500).json({ message: "Server error" });
+
+        console.error("❌ Payment Status Error:", err);
+
+        return res.status(500).json({
+            message: "Server error"
+        });
     }
 };
 
@@ -271,7 +416,7 @@ function generateCCAvenueEncRequest(params: any): string {
     const workingKey = env.CCAVENUE_WORKING_KEY;
     const md5 = crypto.createHash('md5').update(workingKey).digest();
     const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
-    
+
     const cipher = crypto.createCipheriv('aes-128-cbc', md5, iv);
     let encrypted = cipher.update(data, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -284,7 +429,7 @@ function decryptCCAvenueResponse(encResp: string): string {
     const workingKey = env.CCAVENUE_WORKING_KEY;
     const md5 = crypto.createHash('md5').update(workingKey).digest();
     const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
-    
+
     const decipher = crypto.createDecipheriv('aes-128-cbc', md5, iv);
     let decrypted = decipher.update(encResp, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -299,4 +444,4 @@ function parseResponse(response: string): any {
         result[key] = value;
     }
     return result;
-}
+}
