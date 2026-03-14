@@ -76,7 +76,7 @@ const CandidateSchema = new mongoose.Schema({
         community: {
             type: String,
         },
-        community_number:{
+        community_number: {
             type: String,
             unique: true
         },
@@ -114,42 +114,42 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== ADDRESS ==================== */
-address: {
-  present_address: {
-    door_no: String,
-    street: String,
-    village_town: String,
-    district: String,
-    state: String,
-    country: { type: String, default: "India" },
-    pincode: {
-      type: String,
-      match: [/^\d{6}$/, "Invalid pincode"]
-    },
-    type: {
-      type: String,
-      enum: ["Urban", "Rural"]
-    }
-  },
+    address: {
+        present_address: {
+            door_no: String,
+            street: String,
+            village_town: String,
+            district: String,
+            state: String,
+            country: { type: String, default: "India" },
+            pincode: {
+                type: String,
+                match: [/^\d{6}$/, "Invalid pincode"]
+            },
+            type: {
+                type: String,
+                enum: ["Urban", "Rural"]
+            }
+        },
 
-  permanent_address: {
-    same_as_present: Boolean,
-    door_no: String,
-    street: String,
-    village_town: String,
-    district: String,
-    state: String,
-    country: { type: String, default: "India" },
-    pincode: {
-      type: String,
-      match: [/^\d{6}$/, "Invalid pincode"]
+        permanent_address: {
+            same_as_present: Boolean,
+            door_no: String,
+            street: String,
+            village_town: String,
+            district: String,
+            state: String,
+            country: { type: String, default: "India" },
+            pincode: {
+                type: String,
+                match: [/^\d{6}$/, "Invalid pincode"]
+            },
+            type: {
+                type: String,
+                enum: ["Urban", "Rural"]
+            }
+        }
     },
-    type: {
-      type: String,
-      enum: ["Urban", "Rural"]
-    }
-  }
-},
 
     /* ==================== ACADEMIC BACKGROUND ==================== */
     academic_background: {
@@ -159,6 +159,7 @@ address: {
             required: true
         },
         programmeName: String,
+        umis_number: String,
         school_education: {
             is_first_generation_learner: { type: Boolean, default: false },
             emis_number: String,

@@ -31,7 +31,22 @@ interface BasicInfo {
     community: string;
     community_number?: string;
     other_community?: string;
-    is_nri?: boolean;
+    is_nri: boolean;
+    religion: string;
+    christian_denomination?: string;
+    caste: string;
+    special_status: "None" | "Orphan" | "Semi-Orphan" | "Deserted";
+    is_differently_abled: boolean;
+    disability_type?: string;
+    disability_percentage?: number;
+    location_type: "Urban" | "Rural";
+    is_ex_servicemen: boolean;
+    is_first_graduate: boolean;
+    emis_number?: string;
+    umis_number?: string;
+    aadhar_number?: string;
+    blood_group: string;
+    passport_number?: string;
 }
 
 interface ContactInfo {
@@ -319,6 +334,16 @@ export const candidateSignup = async (
                 community: personal_details.basic_info.community == "Others" ? personal_details.basic_info.other_community : personal_details.basic_info.community,
                 community_number: personal_details.basic_info.community_number,
                 nationality: personal_details.basic_info.is_nri ? "Outside Indian" : "Indian",
+                aadharNumber: personal_details.basic_info.aadhar_number,
+                bloodGroup: personal_details.basic_info.blood_group as any,
+                religion: personal_details.basic_info.religion === "Others" ? "Other" : personal_details.basic_info.religion as any,
+                christianDenomination: personal_details.basic_info.christian_denomination,
+                caste: personal_details.basic_info.caste,
+                passportNumber: personal_details.basic_info.passport_number,
+                differentlyAbled: personal_details.basic_info.is_differently_abled,
+                differentlyAbledType: personal_details.basic_info.disability_type,
+                differentlyAbledPercentage: personal_details.basic_info.disability_percentage,
+                childOfExServicemen: personal_details.basic_info.is_ex_servicemen
             },
             application_preferences: {
                 applications
@@ -334,7 +359,12 @@ export const candidateSignup = async (
                 current: "Draft" as const
             },
             academic_background: {
-                programmeType: application_type
+                programmeType: application_type,
+                umis_number: personal_details.basic_info.umis_number,
+                school_education: {
+                    is_first_generation_learner: personal_details.basic_info.is_first_graduate,
+                    emis_number: personal_details.basic_info.emis_number
+                }
             },
             // Add empty objects for required fields to avoid validation errors
             address: {
@@ -342,16 +372,24 @@ export const candidateSignup = async (
                     country: "India",
                     state: "",
                     district: "",
-                    pincode: ""
+                    pincode: "",
+                    type: personal_details.basic_info.location_type
                 },
                 permanent_address: {
                     same_as_present: false,
-                    country: "India"
+                    country: "India",
+                    type: personal_details.basic_info.location_type
                 }
             },
             parents: {
                 father_name: "",
-                mother_name: ""
+                mother_name: "",
+                guardian: {
+                    is_guardian: personal_details.basic_info.special_status !== "None",
+                    is_orphan: personal_details.basic_info.special_status === "Orphan",
+                    is_semi_orphan: personal_details.basic_info.special_status === "Semi-Orphan",
+                    is_deserted: personal_details.basic_info.special_status === "Deserted"
+                }
             },
             metadata: {
                 ip_address: req.ip || req.socket.remoteAddress,
