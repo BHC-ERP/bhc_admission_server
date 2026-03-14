@@ -7,6 +7,7 @@ import cityModel from "../../models/city.model";
 import casteModel from "../../models/caste.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
+import mongoose from "mongoose";
 
 // Initialize S3 Client
 const s3Client = new S3Client({
@@ -177,7 +178,42 @@ export const casteListController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+// GET /Bus route
+export const BusRouteController = async (req: Request, res: Response) => {
+    try {
+        const db = mongoose.connection.db;
+        if (!db) {
+            return res.status(500).json({ message: "Database connection not established" });
+        }
+        const busroute = await db.collection("bus_routes").find({}).toArray();
 
+        return res.json({
+            count: busroute.length,
+            busroute
+        });
+    } catch (error) {
+        console.error("Error fetching bus route list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+// GET /Bus route
+export const HostelController = async (req: Request, res: Response) => {
+    try {
+        const db = mongoose.connection.db;
+        if (!db) {
+            return res.status(500).json({ message: "Database connection not established" });
+        }
+        const hostel = await db.collection("hostel_list").find({}).toArray();
+
+        return res.json({
+            count: hostel.length,
+            hostel
+        });
+    } catch (error) {
+        console.error("Error fetching hostel list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
 
 export const getDashboardDataController = async (req: Request, res: Response) => {
     try {

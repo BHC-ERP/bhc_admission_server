@@ -31,7 +31,9 @@ import {
   getCategoryFacilitiesController,
   fromSubmitController,
   checkmobile_number,
-  checkCommunityNumber
+  checkCommunityNumber,
+  BusRouteController,
+  HostelController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -62,6 +64,9 @@ router.get("/state", stateController);
 router.get("/city/:state_name", cityController);
 router.get("/pincode/:pincode", pincodeController);
 router.get("/caste_list", casteListController);
+router.get("/bus_routes", BusRouteController);
+router.get("/hostel_list", HostelController);
+
 
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
