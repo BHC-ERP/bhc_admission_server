@@ -171,7 +171,7 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             language: 'EN',
             merchant_id: env.CCAVENUE_MERCHANT_ID,
             customer_id: candidateDetails.personal_details.contact_info.email,
-            customer_name: candidateDetails.personal_details.basic_info.applicant_name,
+            customer_name: candidateDetails.personal_details.basic_info.name,
             customer_email: candidateDetails.personal_details.contact_info.email,
             customer_mobile: candidateDetails.personal_details.contact_info.mobile,
             billing_address: candidateDetails.personal_details.contact_info.address || 'NA'
@@ -411,13 +411,30 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
 
 // Helper function to generate CCAvenue encrypted request
 function generateCCAvenueEncRequest(params: any): string {
-    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}`;
 
     const workingKey = env.CCAVENUE_WORKING_KEY;
+
+    if (!workingKey) {
+        console.error("❌ CCAVENUE_WORKING_KEY is missing in environment variables");
+        throw new Error("CCAvenue working key not configured");
+    }
+
+    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}`;
+
+    console.log("CCAvenue Request String:");
+    console.log(data);
+
     const md5 = crypto.createHash('md5').update(workingKey).digest();
-    const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
+
+    const iv = Buffer.from([
+        0x00,0x01,0x02,0x03,
+        0x04,0x05,0x06,0x07,
+        0x08,0x09,0x0a,0x0b,
+        0x0c,0x0d,0x0e,0x0f
+    ]);
 
     const cipher = crypto.createCipheriv('aes-128-cbc', md5, iv);
+
     let encrypted = cipher.update(data, 'utf8', 'hex');
     encrypted += cipher.final('hex');
 
