@@ -29,7 +29,6 @@ import {
   getAcademicBackgroundController,
   getBankDetailsController,
   getCategoryFacilitiesController,
-  getDocumentController,
   fromSubmitController,
   checkmobile_number,
   checkCommunityNumber
@@ -74,7 +73,7 @@ router.get("/address/:regId", getAddressController);
 router.get("/academic_background/:regId", getAcademicBackgroundController);
 router.get("/higher_education/:regId", getBankDetailsController);
 router.get("/category_facilities/:regId", getCategoryFacilitiesController);
-router.get("/documents/:regId", getDocumentController);
+
 // ==================== APPLICATION FORM ROUTES ====================
 router.post("/personal_details/:regId", personalDetailsController);
 router.post("/address/:regId", addressController);

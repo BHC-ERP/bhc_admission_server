@@ -420,21 +420,7 @@ export const getCategoryFacilitiesController = async (req: Request, res: Respons
         return res.status(500).json({ message: "Internal server error" });
     }
 };
-export const getDocumentController = async (req: Request, res: Response) => {
-    try {
-        const regId = req.params.regId;
-        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) }).select("documents").lean();
-        if (!candidate) {
-            return res.status(404).json({ message: "Candidate not found" });
-        }
-        return res.status(200).json({
-            documents: candidate.documents
-        });
-    } catch (error) {
-        console.error("Error fetching documents:", error);
-        return res.status(500).json({ message: "Internal server error" });
-    }
-};
+
 // ==================== APPLICATION FORM CONTROLLERS ====================
 
 // POST /personal_details
