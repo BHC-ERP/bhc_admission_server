@@ -351,22 +351,25 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
 }
 
 // =====================Get All Applications ====================
-export const getAllApplications = async (req: Request, res: Response) => {
+export const getAllHODSelectionApplications = async (req: Request, res: Response) => {
     try {
-        const regNumber = req.params.registration_number;
+        // Find all candidates that have at least one application with status "HOD_SELECTION"
+        const data = await CandidateAdmission.find({
+            "application_preferences.applications": {
+                $elemMatch: { status: "HOD_SELECTION" }
+            }
+        });
         
-        // Add await to execute the query
-        const data = await CandidateAdmission.find({});
-        
-        if (!data) {
+        if (!data || data.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "Candidate not found"
+                message: "No applications found with HOD_SELECTION status"
             });
         }
         
         return res.json({
             success: true,
+            count: data.length,
             data: data
         });
 
@@ -378,7 +381,7 @@ export const getAllApplications = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
-}
+};
 
 // =====================Get Application Form Controllers====================
 

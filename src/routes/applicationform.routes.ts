@@ -34,7 +34,7 @@ import {
   checkmobile_number,
   checkCommunityNumber,
   getcandidatedata,
-  getAllApplications
+  getAllHODSelectionApplications, 
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -71,7 +71,7 @@ router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);
 
 // ====================GET APPLICATION FORM ROUTES ====================
-router.get("/all/", getAllApplications);
+router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/personal_details/:regId", getPersonalDataController);
 router.get("/parents_details/:regId", getParentsDetailsController);
 router.get("/address/:regId", getAddressController);
