@@ -75,7 +75,6 @@ router.get(
   "/applications/:programCode/:stream",
   async (req: Request, res: Response) => {
     try {
-
       const { programCode, stream } = req.params;
 
       /* STEP 1: Check Program Exists */
@@ -95,57 +94,41 @@ router.get(
 
       const applications = await CandidateAdmission.aggregate([
 
-        // Find candidates who applied for the program
         {
           $match: {
-            "application_preferences.applications.program_code": programCode
+            application_preferences: {
+              $elemMatch: {
+                program_code: programCode,
+                stream: stream
+              }
+            }
           }
         },
 
-        // Extract only applications of this program
         {
           $addFields: {
-            filteredApps: {
+            applications: {
               $filter: {
                 input: "$application_preferences.applications",
                 as: "app",
                 cond: {
-                  $eq: ["$$app.program_code", programCode]
+                  $and: [
+                    { $eq: ["$$app.program_code", programCode] },
+                    { $eq: ["$$app.stream", stream] }
+                  ]
                 }
               }
             }
           }
         },
 
-        // Select application based on stream condition
-        {
-          $addFields: {
-            selectedApplication: {
-              $cond: {
-                if: { $gt: [{ $size: "$filteredApps" }, 1] },
-                then: {
-                  $filter: {
-                    input: "$filteredApps",
-                    as: "fa",
-                    cond: {
-                      $eq: ["$$fa.stream", stream]
-                    }
-                  }
-                },
-                else: "$filteredApps"
-              }
-            }
-          }
-        },
-
-        // Final projection
         {
           $project: {
             registration_number: 1,
             personal_details: 1,
             academic_background: 1,
             documents: 1,
-            applications: { $arrayElemAt: ["$selectedApplication", 0] }
+            applications: { $arrayElemAt: ["$applications", 0] }
           }
         }
 
