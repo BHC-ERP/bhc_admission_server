@@ -78,7 +78,8 @@ const CandidateSchema = new mongoose.Schema({
         },
         community_number: {
             type: String,
-            unique: true
+            unique: true,
+            sparse: true
         },
         bloodGroup: {
             type: String,
@@ -119,6 +120,9 @@ const CandidateSchema = new mongoose.Schema({
             door_no: String,
             street: String,
             village_town: String,
+            area: String,
+            landmark: String,
+            taluk: String,
             district: String,
             state: String,
             country: { type: String, default: "India" },
@@ -137,6 +141,9 @@ const CandidateSchema = new mongoose.Schema({
             door_no: String,
             street: String,
             village_town: String,
+            area: String,
+            landmark: String,
+            taluk: String,
             district: String,
             state: String,
             country: { type: String, default: "India" },
