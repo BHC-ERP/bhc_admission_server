@@ -181,15 +181,26 @@ export const casteListController = async (req: Request, res: Response) => {
 export const getcandidatedata = async (req: Request, res: Response) => {
     try {
         const regNumber = req.params.registration_number;
-
-        const data = CandidateAdmission.findOne({ registration_number: Number(regNumber) });
+        
+        // Add await to execute the query
+        const data = await CandidateAdmission.findOne({ registration_number: Number(regNumber) });
+        
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                message: "Candidate not found"
+            });
+        }
+        
         return res.json({
-            data
+            success: true,
+            data: data
         });
 
     } catch (error) {
         console.error("Error fetching candidate data:", error);
         return res.status(500).json({
+            success: false,
             message: "Internal server error",
             error: error instanceof Error ? error.message : "Unknown error"
         });
