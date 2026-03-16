@@ -350,6 +350,36 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
     }
 }
 
+// =====================Get All Applications ====================
+export const getAllApplications = async (req: Request, res: Response) => {
+    try {
+        const regNumber = req.params.registration_number;
+        
+        // Add await to execute the query
+        const data = await CandidateAdmission.find({});
+        
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                message: "Candidate not found"
+            });
+        }
+        
+        return res.json({
+            success: true,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+}
+
 // =====================Get Application Form Controllers====================
 
 export const getPersonalDataController = async (req: Request, res: Response) => {

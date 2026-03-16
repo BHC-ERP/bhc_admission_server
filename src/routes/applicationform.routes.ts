@@ -33,7 +33,8 @@ import {
   fromSubmitController,
   checkmobile_number,
   checkCommunityNumber,
-  getcandidatedata
+  getcandidatedata,
+  getAllApplications
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -70,6 +71,7 @@ router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);
 
 // ====================GET APPLICATION FORM ROUTES ====================
+router.get("/all/", getAllApplications);
 router.get("/personal_details/:regId", getPersonalDataController);
 router.get("/parents_details/:regId", getParentsDetailsController);
 router.get("/address/:regId", getAddressController);
