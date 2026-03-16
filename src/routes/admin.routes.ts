@@ -419,4 +419,196 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
   }
 });
 
+router.get(
+  "/applications/selected/:programCode/:stream",
+  async (req: Request, res: Response) => {
+    try {
+
+      const { programCode, stream } = req.params;
+      const { staff_id, from_date, to_date, community } = req.query;
+
+      /* STEP 1: Check Program Exists */
+
+      const program = await programsModel.findOne({
+        program_code: programCode
+      });
+
+      if (!program) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid program code"
+        });
+      }
+
+      /* STEP 2: Build Match Conditions */
+
+      const matchConditions: any = {
+        "application_preferences.applications.program_code": programCode,
+        "application_preferences.applications.stream": stream,
+        "application_preferences.applications.selected": { $ne: [] } // Has at least one selection
+      };
+
+      // Add staff filter if provided
+      if (staff_id) {
+        matchConditions["application_preferences.applications.selected.selected_by.staff_id"] = staff_id;
+      }
+
+      // Add date range filter if provided
+      if (from_date || to_date) {
+        matchConditions["application_preferences.applications.selected.selection_date"] = {};
+        if (from_date) {
+          matchConditions["application_preferences.applications.selected.selection_date"]["$gte"] = new Date(from_date as string);
+        }
+        if (to_date) {
+          matchConditions["application_preferences.applications.selected.selection_date"]["$lte"] = new Date(to_date as string);
+        }
+      }
+
+      // Add community filter if provided
+      if (community) {
+        matchConditions["personal_details.community"] = community;
+      }
+
+      /* STEP 3: Fetch Selected Applications - NEWEST FIRST */
+
+      const selectedApplications = await CandidateAdmission.aggregate([
+
+        // Unwind the applications array
+        {
+          $unwind: "$application_preferences.applications"
+        },
+
+        // Match program code, stream, and selected status
+        {
+          $match: matchConditions
+        },
+
+        // Add field to get the latest selection for sorting
+        {
+          $addFields: {
+            "application_preferences.applications.latestSelection": {
+              $arrayElemAt: [
+                {
+                  $sortArray: {
+                    input: "$application_preferences.applications.selected",
+                    sortBy: { selection_date: -1 } // Sort selections by date (newest first)
+                  }
+                },
+                0 // Get the newest selection
+              ]
+            }
+          }
+        },
+
+        // Project only necessary fields
+        {
+          $project: {
+            registration_number: 1,
+            "personal_details.fullName": 1,
+            "personal_details.email": 1,
+            "personal_details.phone": 1,
+            "personal_details.gender": 1,
+            "personal_details.community": 1,
+            "personal_details.caste": 1,
+            "personal_details.religion": 1,
+            "academic_background.programmeName": 1,
+            "academic_background.undergraduate_education": 1,
+            "academic_background.school_education": 1,
+            "payment.status": 1,
+            "payment.payment_date": 1,
+            "metadata.submitted_at": 1,
+            application: "$application_preferences.applications",
+            selection_date: "$application_preferences.applications.latestSelection.selection_date",
+            selected_by: "$application_preferences.applications.latestSelection.selected_by",
+            selection_remarks: "$application_preferences.applications.latestSelection.selection_remarks"
+          }
+        },
+
+        // Sort by selection date - NEWEST FIRST (descending order)
+        {
+          $sort: {
+            selection_date: -1 // -1 for descending (newest first), 1 for ascending (oldest first)
+          }
+        }
+
+      ]);
+
+      if (selectedApplications.length === 0) {
+        return res.status(200).json({
+          success: true,
+          program: {
+            program_code: program.program_code,
+            program_name: program.program_name,
+            department_name: program.department_name,
+            stream: program.stream,
+            shift: program.shift
+          },
+          filters_applied: {
+            staff_id: staff_id || null,
+            from_date: from_date || null,
+            to_date: to_date || null,
+            community: community || null
+          },
+          total_selected: 0,
+          message: "No selected candidates found for this program/stream",
+          data: []
+        });
+      }
+      interface SelectionSummary {
+        total_selected: number;
+        newest_selection: Date | null;
+        oldest_selection: Date | null;
+        by_selector: {
+          [key: string]: number;  // Index signature for dynamic staff names
+        };
+      }
+
+      // Then use it:
+      const selectionSummary: SelectionSummary = {
+        total_selected: selectedApplications.length,
+        newest_selection: selectedApplications[0]?.selection_date || null,
+        oldest_selection: selectedApplications[selectedApplications.length - 1]?.selection_date || null,
+        by_selector: {}
+      };
+      // Count selections by staff
+      selectedApplications.forEach(app => {
+        if (app.selected_by) {
+          const staffName = app.selected_by.staff_name;
+          if (!selectionSummary.by_selector[staffName]) {
+            selectionSummary.by_selector[staffName] = 0;
+          }
+          selectionSummary.by_selector[staffName]++;
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        program: {
+          program_code: program.program_code,
+          program_name: program.program_name,
+          department_name: program.department_name,
+          stream: program.stream,
+          shift: program.shift
+        },
+        filters_applied: {
+          staff_id: staff_id || null,
+          from_date: from_date || null,
+          to_date: to_date || null,
+          community: community || null
+        },
+        selection_summary: selectionSummary,
+        total_selected: selectedApplications.length,
+        data: selectedApplications
+      });
+
+    } catch (error) {
+      console.error("Error fetching selected candidates:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Server Error while fetching selected candidates"
+      });
+    }
+  }
+);
+
 export default router;
