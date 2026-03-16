@@ -95,61 +95,44 @@ router.get(
 
       const applications = await CandidateAdmission.aggregate([
 
-        // Find candidates who applied for the program
+        {
+          $unwind: "$application_preferences.applications"
+        },
+
         {
           $match: {
-            "application_preferences.applications.program_code": programCode
+            "application_preferences.applications.program_code": programCode,
+            "application_preferences.applications.stream": stream
           }
         },
 
-        // Extract only applications of this program
-        {
-          $addFields: {
-            filteredApps: {
-              $filter: {
-                input: "$application_preferences.applications",
-                as: "app",
-                cond: {
-                  $eq: ["$$app.program_code", programCode]
-                }
-              }
-            }
-          }
-        },
-
-        // Select application based on stream condition
-        {
-          $addFields: {
-            selectedApplication: {
-              $cond: {
-                if: { $gt: [{ $size: "$filteredApps" }, 1] },
-                then: {
-                  $filter: {
-                    input: "$filteredApps",
-                    as: "fa",
-                    cond: {
-                      $eq: ["$$fa.stream", stream]
-                    }
-                  }
-                },
-                else: "$filteredApps"
-              }
-            }
-          }
-        },
-
-        // Final projection
         {
           $project: {
             registration_number: 1,
             personal_details: 1,
             academic_background: 1,
             documents: 1,
-            applications: { $arrayElemAt: ["$selectedApplication", 0] }
+            applications: "$application_preferences.applications"
           }
         }
 
       ]);
+
+      if (applications.length === 0) {
+        return res.status(200).json({
+          success: true,
+          program: {
+            program_code: program.program_code,
+            program_name: program.program_name,
+            department_name: program.department_name,
+            stream: program.stream,
+            shift: program.shift
+          },
+          total_applications: 0,
+          message: "No applications found for this stream",
+          data: []
+        });
+      }
 
       return res.status(200).json({
         success: true,
