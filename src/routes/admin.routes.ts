@@ -170,11 +170,10 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       remarks,
       program_code,
       interviewDate,
-      user, // User data passed in body
-      selected_stream // Optional: stream to admit the candidate to
+      user,
+      selected_stream
     } = req.body;
 
-    // Validate required fields
     if (!program_code) {
       return res.status(400).json({
         success: false,
@@ -196,7 +195,6 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    // Validate required user fields
     if (!user.staff_id || !user.name || !user.stream || !user.shift) {
       return res.status(400).json({
         success: false,
@@ -204,7 +202,6 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    // Validate status enum
     const validStatuses = [
       'HOD_SELECTION',
       'HOD_SELECTION_INTERVIEW',
@@ -222,39 +219,33 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    // Valid stream values in enum
     const validStreamValues = ['Aided', 'Self-Finance'];
 
-    // Check if user stream is valid
     if (!validStreamValues.includes(user.stream)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid stream value: '${user.stream}'. Must be one of: ${validStreamValues.join(', ')}`
+        message: `Invalid stream value: '${user.stream}'`
       });
     }
 
-    // If selected_stream is provided, validate it
     if (selected_stream && !validStreamValues.includes(selected_stream)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid selected_stream value: '${selected_stream}'. Must be one of: ${validStreamValues.join(', ')}`
+        message: `Invalid selected_stream value`
       });
     }
 
-    // Valid shift values
     const validShiftValues = ['Shift-1', 'Shift-2'];
 
-    // Check if user shift is valid
     if (!validShiftValues.includes(user.shift)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid shift value: '${user.shift}'. Must be one of: ${validShiftValues.join(', ')}`
+        message: `Invalid shift value`
       });
     }
 
     const currentDate = new Date();
 
-    // Find candidate first
     const candidate = await CandidateAdmission.findById(candidateId);
 
     if (!candidate) {
@@ -264,22 +255,14 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    // Safe check for application_preferences
-    if (!candidate.application_preferences) {
-      return res.status(400).json({
-        success: false,
-        message: 'Candidate has no application preferences'
-      });
-    }
-
-    if (!candidate.application_preferences.applications || candidate.application_preferences.applications.length === 0) {
+    if (!candidate.application_preferences ||
+      !candidate.application_preferences.applications?.length) {
       return res.status(400).json({
         success: false,
         message: 'Candidate has no applications'
       });
     }
 
-    // Find the application with matching program_code
     const applicationIndex = candidate.application_preferences.applications.findIndex(
       app => app.program_code === program_code
     );
@@ -287,68 +270,81 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     if (applicationIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: `Program code ${program_code} not found in candidate's applications`
+        message: `Program code ${program_code} not found`
       });
     }
 
-    // Get the specific application
     const targetApplication = candidate.application_preferences.applications[applicationIndex];
 
-    // Store original stream for reference
     const originalStream = targetApplication.stream;
 
-    // Determine which stream to use for admission
-    // Use selected_stream if provided, otherwise fall back to user.stream
     const admissionStream = selected_stream || user.stream;
 
-    // Check if we're admitting to a different stream than applied
     const isStreamChanged = originalStream !== admissionStream;
 
-    // Validate that the admission stream matches user's stream
     if (admissionStream !== user.stream) {
       return res.status(400).json({
         success: false,
-        message: `Stream mismatch: You are trying to admit to '${admissionStream}' but your stream is '${user.stream}'. You can only admit candidates to your own stream.`
+        message: `You can only admit candidates to your own stream`
       });
     }
 
-    // Optional: Check shift as well (keeping this as a warning rather than error if you want to allow shift changes)
-    if (targetApplication.shift && targetApplication.shift !== user.shift) {
-      // You can either block shift mismatches or just log them
-      console.log(`Shift mismatch: Application shift is '${targetApplication.shift}' but user shift is '${user.shift}'`);
-      // Uncomment below if you want to block shift mismatches
-      // return res.status(400).json({
-      //   success: false,
-      //   message: `Shift mismatch: Application shift is '${targetApplication.shift}' but user shift is '${user.shift}'. You can only select candidates for your shift.`
-      // });
-    }
-
-    // Update the specific application
     const updatedApplications = candidate.application_preferences.applications.map((app, index) => {
+
       if (index === applicationIndex) {
-        // Base application update for all statuses
+
         const updatedApp: any = {
-          ...(app.toObject ? app.toObject() : app), // Handle both Mongoose doc and plain object
+          ...(app.toObject ? app.toObject() : app),
+
           status: status,
-          // Use admissionStream for the final admission stream
-          stream: admissionStream, // Update the stream to the admission stream
-          original_stream: isStreamChanged ? originalStream : undefined, // Store original stream if changed
+          stream: admissionStream,
+          original_stream: isStreamChanged ? originalStream : undefined,
+
           staff_id: user.staff_id,
           staff_name: user.name,
           staff_department: user.department_code || user.department,
+
           selection_date: currentDate,
-          selection_remarks: remarks || ''
+          selection_remarks: remarks || '',
+
+          /* ✅ Added Selected History Array */
+          selected: [
+            ...(app.selected || []),
+            {
+              selected_by: {
+                selected_stream: admissionStream,
+                staff_id: user.staff_id,
+                staff_name: user.name,
+                stream: user.stream,
+                shift: user.shift,
+                department: user.department_code || user.department,
+                designation: user.designation
+              },
+              selection_date: currentDate,
+              selection_remarks: remarks || '',
+              ...(status === 'HOD_SELECTION_INTERVIEW' && interviewDate
+                ? {
+                  interview_details: {
+                    scheduled_date: interviewDate,
+                    scheduled_by: user.name,
+                    scheduled_by_id: user.staff_id,
+                    scheduled_at: currentDate
+                  }
+                }
+                : {})
+            }
+          ]
         };
 
-        // Add stream change information in remarks if changed
         if (isStreamChanged) {
           const streamChangeNote = `[Stream Changed: Applied for ${originalStream}, Admitted to ${admissionStream}]`;
+
           updatedApp.selection_remarks = updatedApp.selection_remarks
             ? `${streamChangeNote} ${updatedApp.selection_remarks}`
             : streamChangeNote;
 
-          // Also store in a dedicated field for easy tracking
           updatedApp.stream_change_history = updatedApp.stream_change_history || [];
+
           updatedApp.stream_change_history.push({
             from_stream: originalStream,
             to_stream: admissionStream,
@@ -359,35 +355,23 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
           });
         }
 
-        // Add interview details only if status is HOD_SELECTION_INTERVIEW
-        if (status === 'HOD_SELECTION_INTERVIEW') {
-          if (interviewDate) {
-            updatedApp.interview_details = {
-              scheduled_date: interviewDate,
-              status: 'Scheduled',
-              scheduled_by: user.name,
-              scheduled_by_id: user.staff_id,
-              scheduled_at: currentDate
-            };
-          } else {
-            // If no interview date, just mark as interview requested
-            updatedApp.interview_requested = true;
-            updatedApp.interview_status = 'Pending Scheduling';
-          }
+        if (status === 'HOD_SELECTION_INTERVIEW' && !interviewDate) {
+          updatedApp.interview_requested = true;
+          updatedApp.interview_status = 'Pending Scheduling';
         }
 
         return updatedApp;
       }
+
       return app;
     });
 
-    // Update only the applications array
     const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
       candidateId,
       {
         $set: {
           'application_preferences.applications': updatedApplications,
-          'updatedAt': currentDate
+          updatedAt: currentDate
         }
       },
       { new: true, runValidators: true }
@@ -396,16 +380,14 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     if (!updatedCandidate) {
       return res.status(404).json({
         success: false,
-        message: 'Failed to update candidate'
+        message: "Candidate update failed"
       });
     }
 
-    // Find the updated application to return
     const updatedApplication = updatedCandidate.application_preferences?.applications?.find(
       app => app.program_code === program_code
     );
 
-    // Success response with stream change info
     res.status(200).json({
       success: true,
       message: isStreamChanged
@@ -421,31 +403,19 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
             phone: updatedCandidate.personal_details?.phone
           }
         },
-        application: updatedApplication,
-        stream_info: {
-          applied_stream: originalStream,
-          admitted_stream: admissionStream,
-          is_stream_changed: isStreamChanged
-        },
-        staff_info: {
-          staff_id: user.staff_id,
-          staff_name: user.name,
-          stream: user.stream,
-          shift: user.shift,
-          department: user.department_code || user.department,
-          designation: user.designation
-        },
-        updated_at: currentDate
+        application: updatedApplication
       }
     });
 
-  } catch (error: any) {
-    console.error('Error updating candidate:', error);
+  } catch (error) {
+
+    console.error(error);
+
     res.status(500).json({
       success: false,
-      message: 'Failed to update candidate status',
-      error: error?.message || 'Unknown error'
+      message: 'Failed to update candidate status'
     });
+
   }
 });
 
