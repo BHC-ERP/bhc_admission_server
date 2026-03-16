@@ -178,6 +178,23 @@ export const casteListController = async (req: Request, res: Response) => {
     }
 };
 
+export const getcandidatedata = async (req: Request, res: Response) => {
+    try {
+        const regNumber = req.params.registration_number;
+
+        const data = CandidateAdmission.findOne({ registration_number: Number(regNumber) });
+        return res.json({
+            data
+        });
+
+    } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        return res.status(500).json({
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+}
 
 export const getDashboardDataController = async (req: Request, res: Response) => {
     try {
