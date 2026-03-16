@@ -95,30 +95,13 @@ router.get(
       const applications = await CandidateAdmission.aggregate([
 
         {
-          $match: {
-            application_preferences: {
-              $elemMatch: {
-                program_code: programCode,
-                stream: stream
-              }
-            }
-          }
+          $unwind: "$application_preferences.applications"
         },
 
         {
-          $addFields: {
-            applications: {
-              $filter: {
-                input: "$application_preferences.applications",
-                as: "app",
-                cond: {
-                  $and: [
-                    { $eq: ["$$app.program_code", programCode] },
-                    { $eq: ["$$app.stream", stream] }
-                  ]
-                }
-              }
-            }
+          $match: {
+            "application_preferences.applications.program_code": programCode,
+            "application_preferences.applications.stream": stream
           }
         },
 
@@ -128,7 +111,7 @@ router.get(
             personal_details: 1,
             academic_background: 1,
             documents: 1,
-            applications: { $arrayElemAt: ["$applications", 0] }
+            applications: "$application_preferences.applications"
           }
         }
 
