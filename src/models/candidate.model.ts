@@ -73,7 +73,8 @@ const CandidateSchema = new mongoose.Schema({
             type: String,
             unique: true,
             match: [/^\d{12}$/, "Aadhar must be 12 digits"],
-            sparse: true
+            sparse: true,
+            set: (v: string) => v === "" ? undefined : v
         },
         caste: String,
         passportNumber: String,
@@ -84,7 +85,8 @@ const CandidateSchema = new mongoose.Schema({
         community_number: {
             type: String,
             unique: true,
-            sparse: true
+            sparse: true,
+            set: (v: string) => v === "" ? undefined : v
         },
         bloodGroup: {
             type: String,
