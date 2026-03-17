@@ -187,6 +187,7 @@ export const BusRouteController = async (req: Request, res: Response) => {
         }
         const busroute = await db.collection("bus_routes").find({}).toArray();
 
+
         return res.json({
             count: busroute.length,
             busroute
@@ -196,6 +197,35 @@ export const BusRouteController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const getcandidatedata = async (req: Request, res: Response) => {
+    try {
+        const regNumber = req.params.registration_number;
+
+        // Add await to execute the query
+        const data = await CandidateAdmission.findOne({ registration_number: Number(regNumber) });
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                message: "Candidate not found"
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+}
 // GET /Bus route
 export const HostelController = async (req: Request, res: Response) => {
     try {
@@ -357,6 +387,87 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         });
     }
 }
+
+// =====================Get All Applications ====================
+export const getAllHODSelectionApplications = async (req: Request, res: Response) => {
+    try {
+        // Find all candidates that have at least one application with status "HOD_SELECTION"
+        const data = await CandidateAdmission.find({
+            "application_preferences.applications": {
+                $elemMatch: { status: "HOD_SELECTION" }
+            }
+        });
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No applications found with HOD_SELECTION status"
+            });
+        }
+
+        return res.json({
+            success: true,
+            count: data.length,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
+
+export const getAllVerifySelectionApplications = async (req: Request, res: Response) => {
+    try {
+        // Find all candidates that have at least one application with status "HOD_SELECTION"
+        const data = await CandidateAdmission.aggregate([
+            {
+                $match: {
+                    "application_preferences.applications.status": "VERIFIED"
+                }
+            },
+            {
+                $project: {
+                    registration_number: 1,
+                    personal_details: 1,
+                    academic_background: 1,
+                    applications: {
+                        $filter: {
+                            input: "$application_preferences.applications",
+                            as: "app",
+                            cond: { $eq: ["$$app.status", "VERIFIED"] }
+                        }
+                    }
+                }
+            }
+        ]);
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No applications found with HOD_SELECTION status"
+            });
+        }
+
+        return res.json({
+            success: true,
+            count: data.length,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
 
 // =====================Get Application Form Controllers====================
 
