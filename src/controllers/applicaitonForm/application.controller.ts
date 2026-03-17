@@ -8,6 +8,7 @@ import casteModel from "../../models/caste.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
 import mongoose from "mongoose";
+import { connectDB } from "../../config/database";
 
 // Initialize S3 Client
 const s3Client = new S3Client({
@@ -241,6 +242,24 @@ export const HostelController = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error("Error fetching hostel list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+// GET /settings
+export const settingsController = async (req: Request, res: Response) => {
+    try {
+        const db = mongoose.connection.db;
+        if (!db) {
+            return res.status(500).json({ message: "Database connection not established" });
+        }
+        const settings = await db.collection("settings").find({}).toArray();
+
+        return res.json({
+            count: settings.length,
+            settings
+        });
+    } catch (error) {
+        console.error("Error fetching settings:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
