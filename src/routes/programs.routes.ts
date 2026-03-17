@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
 });
 
 // Program Eligibility details - GET and UPDATE by program_code and stream
-router.get("hod/:program_code/:stream/eligibility", getProgramEligibility);
-router.put("hod/:program_code/:stream/eligibility", updateProgramEligibility);
+router.get("/hod/:program_code/:stream/eligibility", getProgramEligibility);
+router.put("/hod/:program_code/:stream/eligibility", updateProgramEligibility);
 
 export default router;
