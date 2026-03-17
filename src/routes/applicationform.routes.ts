@@ -32,6 +32,9 @@ import {
   fromSubmitController,
   checkmobile_number,
   checkCommunityNumber,
+  getcandidatedata,
+  getAllHODSelectionApplications,
+  getAllVerifySelectionApplications, 
   BusRouteController,
   HostelController
 } from "../controllers/applicaitonForm/application.controller";
@@ -70,6 +73,12 @@ router.get("/hostel_list", HostelController);
 
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
+router.get("/candidate/:registration_number", getcandidatedata);
+
+// ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
+router.get("/hod-selection/all/", getAllHODSelectionApplications);
+router.get("/verified-list/all/", getAllVerifySelectionApplications);
+
 
 // ====================GET APPLICATION FORM ROUTES ====================
 router.get("/personal_details/:regId", getPersonalDataController);
