@@ -9,6 +9,11 @@ const CandidateSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
+    appliedProgrammeType: {
+        type: String,
+        enum: ['UG', 'PG', 'Diploma', 'Certificate', 'PhD'],
+        required: true
+    },
     academic_year: {
         type: String,
         default: "2026-2027",

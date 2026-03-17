@@ -351,6 +351,7 @@ export const candidateSignup = async (
 
         const candidateData = {
             registration_number,
+             appliedProgrammeType: application_type,
             personal_details: {
                 fullName: bi.name,
                 dateOfBirth: dateOfBirth,
