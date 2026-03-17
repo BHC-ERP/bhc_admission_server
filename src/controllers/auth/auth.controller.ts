@@ -34,6 +34,9 @@ interface BasicInfo {
     is_nri: boolean;
     religion: string;
     christian_denomination?: string;
+    christianDenominationOther?: string;
+    diocese?: string;
+    dioceseState?: string;
     caste: string;
     special_status: "None" | "Orphan" | "Semi-Orphan" | "Deserted";
     is_differently_abled: boolean;
@@ -365,6 +368,9 @@ export const candidateSignup = async (
                 bloodGroup: bi.blood_group as any,
                 religion: bi.religion === "Others" ? "Other" : bi.religion as any,
                 christianDenomination: bi.christian_denomination,
+                christianDenominationOther: bi.christianDenominationOther,
+                diocese: bi.diocese,
+                dioceseState: bi.dioceseState,
                 caste: bi.caste,
                 passportNumber: bi.passport_number,
                 differentlyAbled: bi.is_differently_abled,
@@ -685,13 +691,6 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             return res.status(400).json({ message: "simulateType is required" });
         }
 
-        // --- candidateDetails structure from frontend: ---
-        // {
-        //   personal_details: { basic_info, contact_info, application_info, address },
-        //   payment_details: { ... },
-        //   selected_courses: [ ... ]
-        // }
-
         const pd = candidateDetails.personal_details || {};
         const basicInfo = pd.basic_info || {};
         const contactInfo = pd.contact_info || {};
@@ -710,7 +709,6 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
                     application_info: {
                         application_count: appInfo.application_count,
                         application_type: appInfo.application_type,
-                        // frontend sends program_codes (plural); candidateSignup expects program_code
                         program_code: appInfo.program_codes || appInfo.program_code,
                         program_names: appInfo.program_names,
                         program_streams: appInfo.program_streams

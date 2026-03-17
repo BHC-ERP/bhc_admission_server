@@ -257,18 +257,16 @@ export const getcandidatedata = async (req: Request, res: Response) => {
         });
     }
 }
-// GET /Bus route
+
+import hostelModel from "../../models/hostel.model";
+
+// GET /hostel route
 export const HostelController = async (req: Request, res: Response) => {
     try {
-        const db = mongoose.connection.db;
-        if (!db) {
-            return res.status(500).json({ message: "Database connection not established" });
-        }
-        const hostel = await db.collection("hostel_list").find({}).toArray();
-
+        const hostelData = await hostelModel.find({}).lean();
         return res.json({
-            count: hostel.length,
-            hostel
+            count: hostelData.length,
+            hostel: hostelData
         });
     } catch (error) {
         console.error("Error fetching hostel list:", error);
