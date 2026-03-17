@@ -155,7 +155,7 @@ const CandidateSchema = new mongoose.Schema({
         programmeType: {
             type: String,
             enum: ['UG', 'PG', 'Diploma', 'Certificate', 'PhD'],
-            required: true
+            // required: true
         },
         programmeName: String,
         school_education: {
@@ -372,7 +372,9 @@ const CandidateSchema = new mongoose.Schema({
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Draft', 'Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT', 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT']
+                enum: ['Draft', 'Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT', 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT'],
+                default: 'Draft',
+                required: true
             },
             admission_details: {
                 admit_status: {
