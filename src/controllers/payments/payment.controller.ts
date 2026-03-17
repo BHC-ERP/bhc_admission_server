@@ -409,6 +409,69 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
     }
 };
 
+
+
+
+//////////////////////////////////////////////////////////////TESTING
+
+export const testing_failurStatusResponse = async (
+    req: Request<{ reason: string }, {}, {}, { message?: string }>,
+    res: Response
+): Promise<Response> => {
+
+    const { reason } = req.params;
+    const { message } = req.query;
+
+    console.log("🔴 Payment Failure Route Hit");
+    console.log("Reason:", reason);
+    console.log("Message:", message);
+
+    return res.status(400).send(`
+        <html>
+            <head>
+                <title>Payment Failed</title>
+            </head>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1 style="color: red;">❌ Payment Failed</h1>
+                <p><strong>Reason:</strong> ${reason || "Unknown"}</p>
+                <p><strong>Message:</strong> ${message || "No message provided"}</p>
+            </body>
+        </html>
+    `);
+};
+
+export const testing_successStatusResponse = (
+    req: Request<{ transaction_id: string }, {}, {}, { status?: string }>,
+    res: Response
+): Response => {
+
+    const { transaction_id } = req.params;
+    const { status } = req.query;
+
+    console.log("🟢 Payment Success Route Hit");
+    console.log("Transaction ID:", transaction_id);
+    console.log("Status:", status);
+
+    return res.status(200).send(`
+        <html>
+            <head>
+                <title>Payment Success</title>
+            </head>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1 style="color: green;">✅ Payment Successful</h1>
+                <p><strong>Transaction ID:</strong> ${transaction_id}</p>
+                <p><strong>Status:</strong> ${status || "success"}</p>
+            </body>
+        </html>
+    `);
+};
+
+
+
+
+
+
+
 // Helper function to generate CCAvenue encrypted request
 function generateCCAvenueEncRequest(params: any): string {
 
@@ -427,10 +490,10 @@ function generateCCAvenueEncRequest(params: any): string {
     const md5 = crypto.createHash('md5').update(workingKey).digest();
 
     const iv = Buffer.from([
-        0x00,0x01,0x02,0x03,
-        0x04,0x05,0x06,0x07,
-        0x08,0x09,0x0a,0x0b,
-        0x0c,0x0d,0x0e,0x0f
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0a, 0x0b,
+        0x0c, 0x0d, 0x0e, 0x0f
     ]);
 
     const cipher = crypto.createCipheriv('aes-128-cbc', md5, iv);
