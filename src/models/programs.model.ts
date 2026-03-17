@@ -32,6 +32,11 @@ const ProgrammeSchema = new mongoose.Schema({
         type: String,
         enum: ['Shift-1', 'Shift-2']
     },
+    eligibility_subjects: [String],
+    eligibility_description: {
+        type: String,
+        required: true
+    },
     cutoff: {
         part_iii_subjects: [String],
 
