@@ -18,8 +18,6 @@ app.use(sessionMiddleware);
 // Routes
 app.use("/api", routes);
 
-
-
 // Error handler
 app.use(errorHandler);
 

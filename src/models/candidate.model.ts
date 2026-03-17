@@ -78,7 +78,8 @@ const CandidateSchema = new mongoose.Schema({
         },
         community_number: {
             type: String,
-            unique: true
+            unique: true,
+            sparse: true
         },
         bloodGroup: {
             type: String,
@@ -159,6 +160,7 @@ const CandidateSchema = new mongoose.Schema({
             required: true
         },
         programmeName: String,
+        umis_number: String,
         school_education: {
             is_first_generation_learner: { type: Boolean, default: false },
             emis_number: String,
