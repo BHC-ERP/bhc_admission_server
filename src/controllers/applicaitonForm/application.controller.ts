@@ -396,6 +396,7 @@ export const getAllVerifySelectionApplications = async (req: Request, res: Respo
                 $project: {
                     registration_number: 1,
                     personal_details: 1,
+                    academic_background: 1,
                     applications: {
                         $filter: {
                             input: "$application_preferences.applications",
