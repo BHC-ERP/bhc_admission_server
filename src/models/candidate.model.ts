@@ -227,7 +227,8 @@ const CandidateSchema = new mongoose.Schema({
                 marks: {
                     total: Number,
                     max_total: Number,
-                    percentage: Number
+                    percentage: Number,
+                    core_percentage: Number,
                 },
                 subjects: [{
                     name: String,

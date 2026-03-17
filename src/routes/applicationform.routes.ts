@@ -29,13 +29,14 @@ import {
   getAcademicBackgroundController,
   getBankDetailsController,
   getCategoryFacilitiesController,
-  getDocumentController,
   fromSubmitController,
   checkmobile_number,
   checkCommunityNumber,
   getcandidatedata,
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications, 
+  BusRouteController,
+  HostelController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -66,6 +67,9 @@ router.get("/state", stateController);
 router.get("/city/:state_name", cityController);
 router.get("/pincode/:pincode", pincodeController);
 router.get("/caste_list", casteListController);
+router.get("/bus_routes", BusRouteController);
+router.get("/hostel_list", HostelController);
+
 
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
@@ -83,7 +87,7 @@ router.get("/address/:regId", getAddressController);
 router.get("/academic_background/:regId", getAcademicBackgroundController);
 router.get("/higher_education/:regId", getBankDetailsController);
 router.get("/category_facilities/:regId", getCategoryFacilitiesController);
-router.get("/documents/:regId", getDocumentController);
+
 // ==================== APPLICATION FORM ROUTES ====================
 router.post("/personal_details/:regId", personalDetailsController);
 router.post("/address/:regId", addressController);

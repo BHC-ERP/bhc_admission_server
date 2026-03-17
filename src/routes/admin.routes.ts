@@ -75,7 +75,6 @@ router.get(
   "/applications/:programCode/:stream",
   async (req: Request, res: Response) => {
     try {
-
       const { programCode, stream } = req.params;
 
       /* STEP 1: Check Program Exists */
