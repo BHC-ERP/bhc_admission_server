@@ -197,7 +197,11 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             customer_name: candidateDetails.personal_details.basic_info.name,
             customer_email: candidateDetails.personal_details.contact_info.email,
             customer_mobile: candidateDetails.personal_details.contact_info.mobile,
-            billing_address: candidateDetails.personal_details.contact_info.address || 'NA'
+            billing_address: candidateDetails.personal_details.contact_info.address || 'NA',
+            billing_name:candidateDetails.personal_details.basic_info.name,
+            billing_zip:620017,
+            billing_email:candidateDetails.personal_details.contact_info.email,
+            billing_tel:candidateDetails.personal_details.contact_info.mobile
         });
 
         console.log("Encrypted Request Generated Successfully");
