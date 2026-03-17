@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { candidateSignup, SignupRequest } from '../auth/auth.controller';
 import { env } from '../../config/env';
+import { createCandidateService } from '../../services/candidate.service';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -320,27 +321,28 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             console.log("Transformed Signup Payload:");
             console.log(JSON.stringify(transformedBody, null, 2));
 
-            const signupReq = {
-                ...req,
-                body: transformedBody
-            } as Request<{}, {}, SignupRequest>;
+            try {
+                // ✅ ONLY CALL SERVICE (NOT CONTROLLER)
+                const result = await createCandidateService(transformedBody, req);
 
-            console.log("Calling candidateSignup...");
+                console.log("✅ Candidate Signup Completed");
 
-            await candidateSignup(signupReq, {} as Response);
+                // ✅ CLEANUP
+                pendingPayments.delete(order_id);
+                console.log("Pending Payment Removed:", order_id);
 
-            console.log("Candidate Signup Completed");
+                // ✅ REDIRECT (ONLY ONE RESPONSE)
+                return res.redirect(
+                    `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success`
+                );
 
-            pendingPayments.delete(order_id);
+            } catch (error: any) {
+                console.error("❌ Signup failed:", error.message);
 
-            console.log("Pending Payment Removed:", order_id);
-
-            console.log("Redirecting to Success Page");
-
-            return res.redirect(
-                `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success`
-            );
-
+                return res.redirect(
+                    `${env.FRONTEND_URL}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
+                );
+            }
         } else {
 
             console.warn("❌ Payment FAILED");
