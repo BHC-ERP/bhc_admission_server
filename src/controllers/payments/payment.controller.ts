@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { candidateSignup, SignupRequest } from '../auth/auth.controller';
 import { env } from '../../config/env';
 import { createCandidateService } from '../../services/candidate.service';
+import payment_log from '../../models/audit/payment_log';
+import { createPaymentAuditLog } from '../../services/auditlog.service';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -198,10 +200,10 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             customer_email: candidateDetails.personal_details.contact_info.email,
             customer_mobile: candidateDetails.personal_details.contact_info.mobile,
             billing_address: candidateDetails.personal_details.contact_info.address || 'NA',
-            billing_name:candidateDetails.personal_details.basic_info.name,
-            billing_zip:620017,
-            billing_email:candidateDetails.personal_details.contact_info.email,
-            billing_tel:candidateDetails.personal_details.contact_info.mobile
+            billing_name: candidateDetails.personal_details.basic_info.name,
+            billing_zip: 620017,
+            billing_email: candidateDetails.personal_details.contact_info.email,
+            billing_tel: candidateDetails.personal_details.contact_info.mobile
         });
 
         console.log("Encrypted Request Generated Successfully");
@@ -321,6 +323,12 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                     gateway_response: responseParams
                 }
             };
+
+            await createPaymentAuditLog({
+                personal_details: transformedBody.personal_details,
+                selected_courses: transformedBody.selected_courses,
+                payment_details: transformedBody.payment_details
+            });
 
             console.log("Transformed Signup Payload:");
             console.log(JSON.stringify(transformedBody, null, 2));
@@ -468,32 +476,51 @@ export const testing_failurStatusResponse = async (
     `);
 };
 
-export const testing_successStatusResponse = (
+export const ChecksuccessStatusResponse = async (
     req: Request<{ transaction_id: string }, {}, {}, { status?: string }>,
     res: Response
-): Response => {
+): Promise<Response> => {
 
-    const { transaction_id } = req.params;
-    const { status } = req.query;
+    try {
+        const { transaction_id } = req.params;
+        const { status } = req.query;
 
-    console.log("🟢 Payment Success Route Hit");
-    console.log("Transaction ID:", transaction_id);
-    console.log("Status:", status);
+        console.log("🟢 Payment Success Route Hit");
+        console.log("Transaction ID:", transaction_id);
+        console.log("Status:", status);
 
-    return res.status(200).send(`
-        <html>
-            <head>
-                <title>Payment Success</title>
-            </head>
-            <body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h1 style="color: green;">✅ Payment Successful</h1>
-                <p><strong>Transaction ID:</strong> ${transaction_id}</p>
-                <p><strong>Status:</strong> ${status || "success"}</p>
-            </body>
-        </html>
-    `);
+        if (!transaction_id) {
+            return res.status(400).json({
+                message: "Transaction ID is required"
+            });
+        }
+
+        // ✅ FETCH FROM DB
+        const paymentData = await payment_log.findOne({
+            transaction_id: transaction_id
+        }).lean();
+
+        if (!paymentData) {
+            return res.status(404).json({
+                message: "Payment record not found"
+            });
+        }
+
+        // ✅ RETURN FULL DATA (JSON)
+        return res.status(200).json({
+            message: "Payment fetched successfully",
+            data: paymentData
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error fetching payment:", error);
+
+        return res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
 };
-
 
 
 

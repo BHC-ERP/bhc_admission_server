@@ -208,12 +208,12 @@ export const candidateLogin = async (
                 message: "Invalid Mobile Number"
             });
         }
-
+        const latestPayment = candidate.payment?.[candidate.payment.length - 1];
         const user = {
             id: candidate._id.toString(),
             registration_number: candidate.registration_number,
             role: "candidate",
-            payment_status: candidate.payment?.status,
+            payment_status: latestPayment?.status,
         };
 
         const token = signToken(user);
@@ -223,7 +223,7 @@ export const candidateLogin = async (
                 id: candidate._id.toString(),
                 registration_number: candidate.registration_number,
                 role: "candidate",
-                payment_status: candidate.payment?.status || "pending",
+                payment_status: latestPayment?.status,
             };
         }
 

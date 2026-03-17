@@ -415,17 +415,29 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== PAYMENT ==================== */
-    payment: {
-        amount: Number,
-        status: {
-            type: String,
-            enum: ['pending', 'exempted', 'success', 'failed'],
-            default: 'pending'
-        },
-        transaction_id: String,
-        payment_date: Date,
-        payment_method: String
-    },
+
+    payment: [
+        {
+            amount: {
+                type: Number, 
+            },
+            status: {
+                type: String,
+                enum: ['pending', 'exempted', 'success', 'failed'],
+                default: 'pending'
+            },
+            transaction_id: {
+                type: String
+            },
+            payment_date: {
+                type: Date,
+                default: Date.now
+            },
+            payment_method: {
+                type: String
+            }
+        }
+    ],
 
     /* ==================== METADATA ==================== */
     metadata: {

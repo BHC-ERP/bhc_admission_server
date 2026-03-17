@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { directSaveApplication, getPaymentStatus, handleCCAvenueCancel, handleCCAvenueResponse, initiateCCAvenuePayment, testing_failurStatusResponse, testing_successStatusResponse } from '../controllers/payments/payment.controller';
+import { ChecksuccessStatusResponse, directSaveApplication, getPaymentStatus, handleCCAvenueCancel, handleCCAvenueResponse, initiateCCAvenuePayment, testing_failurStatusResponse } from '../controllers/payments/payment.controller';
 const router = Router();
 
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
@@ -16,5 +16,5 @@ router.get('/payment/status/:transaction_id', getPaymentStatus);
 
 router.get("/payment/failure/:reason", testing_failurStatusResponse);
 
-router.get("/payment/success/:transaction_id", testing_successStatusResponse);
+router.get("/payment/success/:transaction_id", ChecksuccessStatusResponse);
 export default router;
