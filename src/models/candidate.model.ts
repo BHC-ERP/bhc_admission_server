@@ -109,6 +109,8 @@ const CandidateSchema = new mongoose.Schema({
             type: String,
         },
         christianDenominationOther: String,
+        diocese: String,
+        dioceseState: String,
         differentlyAbled: {
             type: Boolean,
             default: false

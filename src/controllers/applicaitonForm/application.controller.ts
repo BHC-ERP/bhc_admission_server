@@ -5,10 +5,11 @@ import collegedataModel from "../../models/collegedata.model";
 import countryModel from "../../models/country.model";
 import cityModel from "../../models/city.model";
 import casteModel from "../../models/caste.model";
+import dioceseModel from "../../models/diocese.model";
+import subjectModel from "../../models/subject.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
 import mongoose from "mongoose";
-import { connectDB } from "../../config/database";
 
 // Initialize S3 Client
 const s3Client = new S3Client({
@@ -179,6 +180,35 @@ export const casteListController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+// GET /diocese_list
+export const dioceseListController = async (req: Request, res: Response) => {
+    try {
+        const diocese = await dioceseModel.find({}).lean();
+        return res.json({
+            count: diocese.length,
+            diocese
+        });
+    } catch (error) {
+        console.error("Error fetching diocese list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// GET /subjects_list
+export const subjectListController = async (req: Request, res: Response) => {
+    try {
+        const subjectResult = await subjectModel.findOne({}).select("subjects").lean();
+        return res.json({
+            count: subjectResult?.subjects?.length || 0,
+            subjects: subjectResult?.subjects || []
+        });
+    } catch (error) {
+        console.error("Error fetching subject list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 // GET /Bus route
 export const BusRouteController = async (req: Request, res: Response) => {
     try {
