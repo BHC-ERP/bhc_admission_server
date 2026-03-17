@@ -4,6 +4,28 @@ import crypto from 'crypto';
 import { candidateSignup, SignupRequest } from '../auth/auth.controller';
 import { env } from '../../config/env';
 
+// Helper to decrypt CCAvenue response
+function decryptCCAvenueResponse(encResp: string): string {
+    const workingKey = env.CCAVENUE_WORKING_KEY;
+    const md5 = crypto.createHash('md5').update(workingKey).digest();
+    const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
+
+    const decipher = crypto.createDecipheriv('aes-128-cbc', md5, iv);
+    let decrypted = decipher.update(encResp, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+// Helper to parse response string
+function parseResponse(response: string): any {
+    const params = new URLSearchParams(response);
+    const result: any = {};
+    for (const [key, value] of params) {
+        result[key] = value;
+    }
+    return result;
+}
+
 // Store for pending payments (use Redis in production)
 const pendingPayments = new Map();
 
@@ -502,26 +524,4 @@ function generateCCAvenueEncRequest(params: any): string {
     encrypted += cipher.final('hex');
 
     return encrypted;
-}
-
-// Helper to decrypt CCAvenue response
-function decryptCCAvenueResponse(encResp: string): string {
-    const workingKey = env.CCAVENUE_WORKING_KEY;
-    const md5 = crypto.createHash('md5').update(workingKey).digest();
-    const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
-
-    const decipher = crypto.createDecipheriv('aes-128-cbc', md5, iv);
-    let decrypted = decipher.update(encResp, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-}
-
-// Helper to parse response string
-function parseResponse(response: string): any {
-    const params = new URLSearchParams(response);
-    const result: any = {};
-    for (const [key, value] of params) {
-        result[key] = value;
-    }
-    return result;
 }

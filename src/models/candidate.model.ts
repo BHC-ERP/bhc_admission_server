@@ -76,9 +76,8 @@ const CandidateSchema = new mongoose.Schema({
         community: {
             type: String,
         },
-        community_number:{
-            type: String,
-            unique: true
+        community_number: {
+            type: String
         },
         bloodGroup: {
             type: String,
@@ -114,42 +113,42 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== ADDRESS ==================== */
-address: {
-  present_address: {
-    door_no: String,
-    street: String,
-    village_town: String,
-    district: String,
-    state: String,
-    country: { type: String, default: "India" },
-    pincode: {
-      type: String,
-      match: [/^\d{6}$/, "Invalid pincode"]
-    },
-    type: {
-      type: String,
-      enum: ["Urban", "Rural"]
-    }
-  },
+    address: {
+        present_address: {
+            door_no: String,
+            street: String,
+            village_town: String,
+            district: String,
+            state: String,
+            country: { type: String, default: "India" },
+            pincode: {
+                type: String,
+                match: [/^\d{6}$/, "Invalid pincode"]
+            },
+            type: {
+                type: String,
+                enum: ["Urban", "Rural"]
+            }
+        },
 
-  permanent_address: {
-    same_as_present: Boolean,
-    door_no: String,
-    street: String,
-    village_town: String,
-    district: String,
-    state: String,
-    country: { type: String, default: "India" },
-    pincode: {
-      type: String,
-      match: [/^\d{6}$/, "Invalid pincode"]
+        permanent_address: {
+            same_as_present: Boolean,
+            door_no: String,
+            street: String,
+            village_town: String,
+            district: String,
+            state: String,
+            country: { type: String, default: "India" },
+            pincode: {
+                type: String,
+                match: [/^\d{6}$/, "Invalid pincode"]
+            },
+            type: {
+                type: String,
+                enum: ["Urban", "Rural"]
+            }
+        }
     },
-    type: {
-      type: String,
-      enum: ["Urban", "Rural"]
-    }
-  }
-},
 
     /* ==================== ACADEMIC BACKGROUND ==================== */
     academic_background: {
