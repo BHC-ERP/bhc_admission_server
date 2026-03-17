@@ -497,7 +497,7 @@ export const ChecksuccessStatusResponse = async (
 
         // ✅ FETCH FROM DB
         const paymentData = await payment_log.findOne({
-            transaction_id: transaction_id
+            "payment_details.transaction_id": transaction_id
         }).lean();
 
         if (!paymentData) {
