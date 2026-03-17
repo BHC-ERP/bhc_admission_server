@@ -268,12 +268,12 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         if (!isDocumentUploadMandatory || documentsUploaded > 0) completedRequirements++;
 
         const overallCompletionPercentage = Math.round((completedRequirements / totalRequirements) * 100);
-
+        const latestPayment = candidate.payment?.[candidate.payment.length - 1];
         return res.json({
             registration_number: candidate.registration_number,
             personal_details: candidate.personal_details,
             personal_details_completion: personalDetailsPercentage,
-            payment_status: candidate.payment?.status || 'pending',
+            payment_status: latestPayment?.status,
             payment_details: candidate.payment || {},
             documents: {
                 required_documents: candidate.documents?.required_documents || [],
