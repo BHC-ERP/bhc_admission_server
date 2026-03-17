@@ -1,5 +1,9 @@
 import { Router } from "express";
 import programsModel from "../models/programs.model";
+import {
+  getProgramEligibility,
+  updateProgramEligibility
+} from "../controllers/programs/programs.controller";
 
 const router = Router();
 
@@ -16,5 +20,8 @@ router.get("/", async (req, res) => {
   });
 });
 
+// Program Eligibility details - GET and UPDATE by program_code and stream
+router.get("hod/:program_code/:stream/eligibility", getProgramEligibility);
+router.put("hod/:program_code/:stream/eligibility", updateProgramEligibility);
 
 export default router;

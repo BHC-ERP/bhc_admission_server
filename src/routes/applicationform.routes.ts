@@ -36,7 +36,7 @@ import {
   checkCommunityNumber,
   getcandidatedata,
   getAllHODSelectionApplications,
-  getAllVerifySelectionApplications, 
+  getAllVerifySelectionApplications,
   BusRouteController,
   HostelController,
   settingsController
