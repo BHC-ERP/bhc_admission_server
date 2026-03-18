@@ -970,6 +970,49 @@ export const checkCommunityNumber = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+// Check AadharNumber 
+export const checkAadharNumber = async (req: Request, res: Response) => {
+    try {
+        const { aadharNumber } = req.params;
+
+        const isAadharNumber = await CandidateAdmission.findOne({ "personal_details.aadharNumber": aadharNumber });
+
+        if (isAadharNumber) {
+            return res.status(200).json({ message: "Already Having this Aadhar Number" });
+        }
+        return res.status(200).json({
+            message: "New Aadhar Number",
+            isAadharNumber: false,
+        });
+
+    } catch (error) {
+        console.error("Error checking Aadhar Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// Check PassportNumber 
+export const checkPassportNumber = async (req: Request, res: Response) => {
+    try {
+        const { passportNumber } = req.params;
+
+        const isPassportNumber = await CandidateAdmission.findOne({ "personal_details.passportNumber": passportNumber });
+
+        if (isPassportNumber) {
+            return res.status(200).json({ message: "Already Having this Passport Number" });
+        }
+        return res.status(200).json({
+            message: "New Passport Number",
+            isPassportNumber: false,
+        });
+
+    } catch (error) {
+        console.error("Error checking Passport Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 // POST /category_facilities
 export const categoryFacilitiesController = async (req: Request, res: Response) => {
     try {

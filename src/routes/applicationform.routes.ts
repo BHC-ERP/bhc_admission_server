@@ -34,6 +34,8 @@ import {
   fromSubmitController,
   checkmobile_number,
   checkCommunityNumber,
+  checkAadharNumber,
+  checkPassportNumber,
   getcandidatedata,
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications,
@@ -103,6 +105,8 @@ router.post("/bank_details/:regId", bankDetailsController);
 router.post("/category_facilities/:regId", categoryFacilitiesController);
 router.get("/check_mobile/:mobile", checkmobile_number);
 router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
+router.get("/check_aadharNumber/:aadharNumber", checkAadharNumber);
+router.get("/check_passportNumber/:passportNumber", checkPassportNumber);
 
 // ==================== DOCUMENT UPLOAD ROUTES ====================
 router.post(
