@@ -230,15 +230,13 @@ export const candidateSignup = async (
 
         const existing = await CandidateAdmission.findOne({
             $or: [
-                { "personal_details.phone": mobile },
-                { "personal_details.email": email }
+                { "personal_details.phone": mobile }, 
             ]
         });
 
         if (existing) {
             console.log("3a. Duplicate found:", {
-                existing_phone: existing.personal_details?.phone,
-                existing_email: existing.personal_details?.email,
+                existing_phone: existing.personal_details?.phone, 
                 registration_number: existing.registration_number
             });
             return res.status(409).json({
