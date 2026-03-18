@@ -189,8 +189,7 @@ export const getApplicationStats = async (req: Request, res: Response) => {
                 paidApplications,
                 freeApplications,
                 registered,
-                marksEntered,
-                courseWise,
+                marksEntered, 
 
                 /* NEW STATS */
                 streamStats: {
