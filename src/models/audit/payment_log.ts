@@ -105,7 +105,7 @@ export interface IGatewayResponse {
 export interface IPaymentDetails {
     payment_method: string;
     upi_id?: string;
-    status: "success" | "failed" | "pending";
+    status: string;
     amount_paid: number;
     transaction_id: string;
     transaction_date: Date;

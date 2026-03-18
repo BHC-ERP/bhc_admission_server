@@ -438,7 +438,7 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
                 ...(candidateDetails?.payment_details || {}),
                 payment_method: "ccavenue",
                 amount_paid: amount ? parseFloat(amount) : 0,
-                status: "cancelled",
+                status: order_status,
                 transaction_id: tracking_id || `CANCEL_${Date.now()}`,
                 bank_ref_no: bank_ref_no || null,
                 transaction_date: new Date().toISOString(),
