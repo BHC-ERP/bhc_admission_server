@@ -385,7 +385,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 }
 
                 const registration_number = candidate.registration_number;
-                const candidate_name = candidate.personal_details?.fullName;
+                const candidate_name = candidate.personal_details?.fullName || 'Candidate';
                 const phone = candidate.personal_details?.phone;
 
                 // ✅ SEND SMS (NON-BLOCKING SAFE)
