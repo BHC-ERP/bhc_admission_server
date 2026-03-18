@@ -41,7 +41,7 @@ const freeCommunities = ['SC', 'ST', 'SAC'];
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
 export const directSaveApplication = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { candidateDetails, amount, isExempted, exemptionReason } = req.body;
+        const { candidateDetails, amount,  exemptionReason } = req.body;
 
         if (!candidateDetails) {
             return res.status(400).json({

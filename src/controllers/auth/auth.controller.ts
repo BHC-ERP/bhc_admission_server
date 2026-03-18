@@ -6,6 +6,8 @@ import programsModel from "../../models/programs.model";
 import CandidateAdmission from "../../models/candidate.model";
 import { createCandidateWithRetry, getNextRegistrationNumber } from "../../utils/getNextRegistrationNumber";
 import { ApplicationCounter, getNextApplicationNumbers } from "../../models/auth/ApplicationCounter.model";
+import { sendSMSService } from "../../services/sms.service";
+import { sendMailService } from "../../services/mail.service";
 
 
 // Types and Interfaces
@@ -351,7 +353,7 @@ export const candidateSignup = async (
 
         const candidateData = {
             registration_number,
-             appliedProgrammeType: application_type,
+            appliedProgrammeType: application_type,
             personal_details: {
                 fullName: bi.name,
                 dateOfBirth: dateOfBirth,
@@ -456,6 +458,36 @@ export const candidateSignup = async (
                 registration_number,
                 role: "candidate"
             };
+        }
+
+        const candidate_data = await CandidateAdmission.findOne(
+            { "personal_details.phone": candidateData.personal_details.phone },
+            {
+                registration_number: 1,
+                "personal_details.phone": 1,
+                "payment.$": 1
+            }
+        );
+
+        if (!candidate) {
+            throw new Error("Transaction not found");
+        }
+
+        const candidate_name = candidate.personal_details?.fullName || 'Candidate';
+        const phone = candidate.personal_details?.phone;
+        // ✅ SEND SMS (NON-BLOCKING SAFE)
+        if (phone) {
+            const message = `Dear ${candidate_name}, Your Registration No. is:${registration_number} and the Password is:${phone} - Bishop Heber College`;
+
+            await sendSMSService(phone, message); // 🔥 no await (optional)
+            // OR await if you want strict confirmation:
+            // await sendSMSService(phone, message);
+        }
+        // ✅ CLEANUP
+
+        if (email) {
+            console.log("------ Mail ------ Init :", email);
+            await sendMailService(email, registration_number.toString(), phone!);
         }
 
         // Generate callback URL
@@ -692,7 +724,7 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             simulateType = "exempted";
         }
 
-        if (simulateType === "success" || simulateType === "exempted") {
+        if (simulateType === "exempted") {
             const transformedBody = {
                 personal_details: {
                     basic_info: basicInfo,
@@ -712,10 +744,10 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
                 selected_courses: candidateDetails.selected_courses,
                 payment_details: {
                     ...(candidateDetails.payment_details || {}),
-                    payment_method: "ccavenue",
+                    payment_method: "Free Applications",
                     amount_paid: amount,
-                    status: simulateType === "exempted" ? "exempted" : "success",
-                    transaction_id: candidateDetails.payment_details?.transaction_id || (simulateType === "exempted" ? `EXEMPT${Date.now()}` : `TXN${Date.now()}`),
+                    status: simulateType,
+                    transaction_id: candidateDetails.payment_details?.transaction_id || (simulateType === "exempted" ? `BHC-EXEMPT-${Date.now()}` : `TXN${Date.now()}`),
                     transaction_date: candidateDetails.payment_details?.transaction_date || new Date().toISOString()
                 }
             };
@@ -726,6 +758,9 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             } as Request<{}, {}, SignupRequest>;
 
             return await candidateSignup(signupReq, res);
+
+
+
 
         } else if (simulateType === "failure") {
             return res.status(400).json({ message: "Payment failed", status: "failed" });
