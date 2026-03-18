@@ -458,7 +458,7 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
         console.log("Redirecting to Cancel Page");
 
         return res.redirect(
-            `${env.FRONTEND_URL}/payment/failure?reason=cancelled`
+            `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}`
         );
 
     } catch (err) {

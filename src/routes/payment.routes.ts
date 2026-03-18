@@ -16,5 +16,5 @@ router.get('/payment/status/:transaction_id', getPaymentStatus);
 
 router.get("/payment/failure/:reason", testing_failurStatusResponse);
 
-router.get("/payment/success/:transaction_id", ChecksuccessStatusResponse);
+router.get("/payment/status/:transaction_id", ChecksuccessStatusResponse);
 export default router;
