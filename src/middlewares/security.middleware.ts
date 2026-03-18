@@ -9,6 +9,19 @@ export const restrictDirectAccess = (
     const referer = req.headers.referer;
     const fetchMode = req.headers["sec-fetch-mode"];
 
+    // 0. Whitelist of routes that ARE allowed to be accessed via browser/direct navigation
+    // (example: payment gateway callbacks)
+    const whitelist = [
+        "/api/secure/payment/ccavenue/response",
+        "/api/secure/payment/ccavenue/cancel",
+        // "/api/payment/ccavenue/response",
+        // "/api/payment/ccavenue/cancel"
+    ];
+
+    if (whitelist.some(path => req.originalUrl.startsWith(path))) {
+        return next();
+    }
+
     // 1. Block direct browser navigation (typing the URL in the address bar)
     // Browsers send 'navigate' when you type a URL, but 'cors' or 'no-cors' when React makes an API call.
     if (fetchMode === "navigate") {
