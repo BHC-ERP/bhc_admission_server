@@ -270,9 +270,37 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         // Generate unique order ID
         const orderId = `BHC-ADD-${Date.now()}${Math.floor(Math.random() * 10000)}`;
         
+        // Transform candidate into candidateDetails format for audit log / failure page
+        const candidateDetails = {
+            personal_details: {
+                basic_info: {
+                    name: candidate.personal_details?.fullName,
+                    gender: candidate.personal_details?.gender,
+                    date_of_birth: candidate.personal_details?.dateOfBirth,
+                    community: candidate.personal_details?.community,
+                    is_nri: candidate.personal_details?.nationality !== 'Indian'
+                },
+                contact_info: {
+                    mobile: candidate.personal_details?.phone,
+                    email: candidate.personal_details?.email
+                },
+                application_info: {
+                    application_count: (candidate as any).application_preferences?.applications?.length || 0,
+                    application_type: candidate.appliedProgrammeType as "UG" | "PG",
+                    program_code: (candidate as any).application_preferences?.applications?.map((app: any) => app.program_code) || [],
+                    program_names: (candidate as any).application_preferences?.applications?.map((app: any) => app.program_name) || [],
+                    program_streams: (candidate as any).application_preferences?.applications?.map((app: any) => app.stream) || []
+                },
+                address: candidate.address
+            },
+            selected_courses: selected_courses, // Newly selected courses for this transaction
+            step_completed: 4
+        };
+
         // Store pending payment data with Add More context
         pendingPayments.set(orderId, {
             candidateId,
+            candidateDetails, // Storing for failure audit log
             selected_courses,
             amount,
             isAddMore: true,
