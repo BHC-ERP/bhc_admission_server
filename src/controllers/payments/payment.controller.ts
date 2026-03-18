@@ -201,7 +201,7 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             customer_mobile: candidateDetails.personal_details.contact_info.mobile,
             billing_address: candidateDetails.personal_details.address.present_address || 'NA',
             billing_name: candidateDetails.personal_details.basic_info.name,
-            billing_zip: candidateDetails.personal_details.address.pincode,
+            billing_zip: candidateDetails.personal_details.address.present_address.pincode,
             billing_email: candidateDetails.personal_details.contact_info.email,
             billing_tel: candidateDetails.personal_details.contact_info.mobile
         });
