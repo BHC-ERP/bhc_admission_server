@@ -36,6 +36,8 @@ import {
   checkCommunityNumber,
   checkAadharNumber,
   checkPassportNumber,
+  checkEmisNumber,
+  checkUmisNumber,
   getcandidatedata,
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications,
@@ -107,6 +109,8 @@ router.get("/check_mobile/:mobile", checkmobile_number);
 router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
 router.get("/check_aadharNumber/:aadharNumber", checkAadharNumber);
 router.get("/check_passportNumber/:passportNumber", checkPassportNumber);
+router.get("/check_emisNumber/:emisNumber", checkEmisNumber);
+router.get("/check_umisNumber/:umisNumber", checkUmisNumber);
 
 // ==================== DOCUMENT UPLOAD ROUTES ====================
 router.post(

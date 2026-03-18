@@ -1013,6 +1013,48 @@ export const checkPassportNumber = async (req: Request, res: Response) => {
     }
 };
 
+// Check EmisNumber
+export const checkEmisNumber = async (req: Request, res: Response) => {
+    try {
+        const { emisNumber } = req.params;
+
+        const isEmisNumber = await CandidateAdmission.findOne({ "academic_background.school_education.emis_number": emisNumber });
+
+        if (isEmisNumber) {
+            return res.status(200).json({ message: "Already Having this EMIS Number" });
+        }
+        return res.status(200).json({
+            message: "New EMIS Number",
+            isEmisNumber: false,
+        });
+
+    } catch (error) {
+        console.error("Error checking EMIS Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// Check UmisNumber
+export const checkUmisNumber = async (req: Request, res: Response) => {
+    try {
+        const { umisNumber } = req.params;
+
+        const isUmisNumber = await CandidateAdmission.findOne({ "academic_background.umis_number": umisNumber });
+
+        if (isUmisNumber) {
+            return res.status(200).json({ message: "Already Having this UMIS Number" });
+        }
+        return res.status(200).json({
+            message: "New UMIS Number",
+            isUmisNumber: false,
+        });
+
+    } catch (error) {
+        console.error("Error checking UMIS Number", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 // POST /category_facilities
 export const categoryFacilitiesController = async (req: Request, res: Response) => {
     try {

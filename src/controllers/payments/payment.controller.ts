@@ -202,9 +202,19 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             customer_name: candidateDetails.personal_details.basic_info.name,
             customer_email: candidateDetails.personal_details.contact_info.email,
             customer_mobile: candidateDetails.personal_details.contact_info.mobile,
-            billing_address: candidateDetails.personal_details.address.present_address || 'NA',
+            billing_address: [
+                candidateDetails.personal_details.address.present_address?.door_no,
+                candidateDetails.personal_details.address.present_address?.street,
+                candidateDetails.personal_details.address.present_address?.village_town,
+                candidateDetails.personal_details.address.present_address?.district,
+                candidateDetails.personal_details.address.present_address?.state,
+                candidateDetails.personal_details.address.present_address?.country
+            ].filter(Boolean).join(", "),
             billing_name: candidateDetails.personal_details.basic_info.name,
-            billing_zip: candidateDetails.personal_details.address.present_address.pincode,
+            billing_zip: candidateDetails.personal_details.address.present_address?.pincode,
+            billing_city: candidateDetails.personal_details.address.present_address?.district,
+            billing_state: candidateDetails.personal_details.address.present_address?.state,
+            billing_country: candidateDetails.personal_details.address.present_address?.country,
             billing_email: candidateDetails.personal_details.contact_info.email,
             billing_tel: candidateDetails.personal_details.contact_info.mobile
         });
@@ -328,10 +338,27 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 }
             };
 
+            // await createPaymentAuditLog({
+            //     personal_details: transformedBody.personal_details,
+            //     selected_courses: transformedBody.selected_courses,
+            //     payment_details: transformedBody.payment_details,
+            //     step_completed: candidateDetails?.step_completed
+            // });
+
             await createPaymentAuditLog({
-                personal_details: transformedBody.personal_details,
-                selected_courses: transformedBody.selected_courses,
-                payment_details: transformedBody.payment_details,
+                personal_details: candidateDetails || {},
+                selected_courses: candidateDetails?.selected_courses || [],
+                payment_details: {
+                    ...(candidateDetails?.payment_details || {}),
+                    payment_method: "ccavenue",
+                    amount_paid: amount ? parseFloat(amount) : 0,
+                    status: order_status,
+                    transaction_id: tracking_id,
+                    bank_ref_no: bank_ref_no || null,
+                    transaction_date: new Date().toISOString(),
+                    gateway_response: responseParams,
+                    failure_message: failure_message || ""
+                },
                 step_completed: candidateDetails?.step_completed
             });
 
@@ -675,7 +702,7 @@ function generateCCAvenueEncRequest(params: any): string {
         throw new Error("CCAvenue working key not configured");
     }
 
-    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}&billing_name=${params.billing_name}&billing_zip=${params.billing_zip}&billing_email=${params.billing_email}&billing_tel=${params.billing_tel}`;
+    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}&billing_name=${params.billing_name}&billing_zip=${params.billing_zip}&billing_email=${params.billing_email}&billing_tel=${params.billing_tel}&billing_city=${params.billing_city}&billing_state=${params.billing_state}&billing_country=${params.billing_country}`;
 
     console.log("CCAvenue Request String:");
     console.log(data);
