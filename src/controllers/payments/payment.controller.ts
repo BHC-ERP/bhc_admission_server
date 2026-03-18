@@ -55,6 +55,7 @@ export const directSaveApplication = async (req: Request, res: Response): Promis
             personal_details: {
                 basic_info: candidateDetails.personal_details.basic_info,
                 contact_info: candidateDetails.personal_details.contact_info,
+                address: candidateDetails.personal_details.address,
                 application_info: {
                     application_count: applicationInfo.application_count,
                     application_type: applicationInfo.application_type,
@@ -330,7 +331,8 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             await createPaymentAuditLog({
                 personal_details: transformedBody.personal_details,
                 selected_courses: transformedBody.selected_courses,
-                payment_details: transformedBody.payment_details
+                payment_details: transformedBody.payment_details,
+                step_completed: candidateDetails?.step_completed
             });
 
             console.log("Transformed Signup Payload:");
@@ -387,6 +389,23 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
             console.warn("❌ Payment FAILED");
             console.warn("Failure Message:", failure_message);
+
+            await createPaymentAuditLog({
+                personal_details: candidateDetails?.personal_details || {},
+                selected_courses: candidateDetails?.selected_courses || [],
+                payment_details: {
+                    ...(candidateDetails?.payment_details || {}),
+                    payment_method: "ccavenue",
+                    amount_paid: amount ? parseFloat(amount) : 0,
+                    status: order_status,
+                    transaction_id: tracking_id || `FAILED_${Date.now()}`,
+                    bank_ref_no: bank_ref_no || null,
+                    transaction_date: new Date().toISOString(),
+                    gateway_response: responseParams,
+                    failure_message: failure_message || "Payment failed"
+                },
+                step_completed: candidateDetails?.step_completed
+            });
 
             pendingPayments.delete(order_id);
 
@@ -472,7 +491,8 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
                 transaction_date: new Date().toISOString(),
                 gateway_response: responseParams,
                 failure_message: failure_message || "User cancelled payment"
-            }
+            },
+            step_completed: candidateDetails?.step_completed
         });
 
         console.log("✅ Cancel payment audit log saved");
