@@ -8,6 +8,7 @@ import payment_log from '../../models/audit/payment_log';
 import { createPaymentAuditLog } from '../../services/auditlog.service';
 import CandidateAdmission from '../../models/candidate.model';
 import { sendSMSService } from '../../services/sms.service';
+import { sendMailService } from '../../services/mail.service';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -387,6 +388,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 const registration_number = candidate.registration_number;
                 const candidate_name = candidate.personal_details?.fullName || 'Candidate';
                 const phone = candidate.personal_details?.phone;
+                const email = candidate.personal_details?.email;
 
                 // ✅ SEND SMS (NON-BLOCKING SAFE)
                 if (phone) {
@@ -397,6 +399,11 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                     // await sendSMSService(phone, message);
                 }
                 // ✅ CLEANUP
+
+                if (email) {
+                    await sendMailService(email, registration_number.toString(), phone!);
+                }
+
                 pendingPayments.delete(order_id);
                 console.log("Pending Payment Removed:", order_id);
 
