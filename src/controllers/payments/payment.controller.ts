@@ -387,6 +387,11 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         console.log("Request Body:", JSON.stringify(req.body, null, 2));
 
+        const encResp = req.body;
+        const decryptedResponse = decryptCCAvenueResponse(encResp);
+
+        console.log("Decrypted Response String:");
+        console.log(decryptedResponse);
         const { order_id } = req.body;
 
         console.log("Order ID:", order_id);
