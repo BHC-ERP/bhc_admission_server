@@ -7,6 +7,7 @@ import { createCandidateService } from '../../services/candidate.service';
 import payment_log from '../../models/audit/payment_log';
 import { createPaymentAuditLog } from '../../services/auditlog.service';
 import CandidateAdmission from '../../models/candidate.model';
+import { sendSMSService } from '../../services/sms.service';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -341,6 +342,31 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
                 console.log("✅ Candidate Signup Completed");
 
+                const candidate = await CandidateAdmission.findOne(
+                    { "payment.transaction_id": tracking_id },
+                    {
+                        registration_number: 1,
+                        "personal_details.phone": 1,
+                        "payment.$": 1
+                    }
+                );
+
+                if (!candidate) {
+                    throw new Error("Transaction not found");
+                }
+
+                const registration_number = candidate.registration_number;
+                const candidate_name = candidate.personal_details?.fullName;
+                const phone = candidate.personal_details?.phone;
+
+                // ✅ SEND SMS (NON-BLOCKING SAFE)
+                if (phone) {
+                    const message = `Dear ${candidate_name}, Your Registration No. is:${registration_number} and the Password is:${phone} - Bishop Heber College`;
+
+                    await sendSMSService(phone, message); // 🔥 no await (optional)
+                    // OR await if you want strict confirmation:
+                    // await sendSMSService(phone, message);
+                }
                 // ✅ CLEANUP
                 pendingPayments.delete(order_id);
                 console.log("Pending Payment Removed:", order_id);
