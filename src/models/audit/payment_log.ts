@@ -173,7 +173,7 @@ const GatewayResponseSchema = new Schema<IGatewayResponse>(
 const PaymentDetailsSchema = new Schema<IPaymentDetails>({
     payment_method: { type: String, required: true },
     upi_id: { type: String },
-    status: { type: String, enum: ["success", "failed", "pending"] },
+    status: { type: String, required: true },
     amount_paid: { type: Number },
     transaction_id: { type: String },
     transaction_date: { type: Date },
@@ -201,4 +201,4 @@ const Payment_audit_log = new Schema<PaymentAuditLog>(
     { timestamps: true }
 );
 
-export default  mongoose.model<PaymentAuditLog>("Payment_audit_log", Payment_audit_log);
+export default mongoose.model<PaymentAuditLog>("Payment_audit_log", Payment_audit_log);
