@@ -38,7 +38,20 @@ export const getProgrammeWiseStats = async (req: Request, res: Response) => {
             },
             { $unwind: "$application_preferences.applications" },
 
-            /* PAYMENT CHECK */
+            /* FIX PAYMENT ARRAY */
+            {
+                $addFields: {
+                    paymentArray: {
+                        $cond: [
+                            { $isArray: "$payment" },
+                            "$payment",
+                            []
+                        ]
+                    }
+                }
+            },
+
+            /* CHECK PAID */
             {
                 $addFields: {
                     isPaid: {
@@ -46,7 +59,7 @@ export const getProgrammeWiseStats = async (req: Request, res: Response) => {
                             {
                                 $size: {
                                     $filter: {
-                                        input: "$payment",
+                                        input: "$paymentArray",
                                         as: "p",
                                         cond: { $eq: ["$$p.status", "success"] }
                                     }
