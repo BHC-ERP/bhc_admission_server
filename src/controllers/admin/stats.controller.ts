@@ -7,7 +7,7 @@ export const getApplicationStats = async (req: Request, res: Response) => {
 
         /* =========================
            TOTAL APPLICATIONS
-        ========================= */ 
+        ========================= */
 
         const totalApplicationsAgg = await CandidateAdmission.aggregate([
             {
@@ -95,6 +95,89 @@ export const getApplicationStats = async (req: Request, res: Response) => {
             },
             { $sort: { count: -1 } }
         ]);
+        /* =========================
+           STREAM + PAYMENT STATS
+        ========================= */
+        const streamStatsAgg = await CandidateAdmission.aggregate([
+            {
+                $match: {
+                    appliedProgrammeType: programmeType
+                }
+            },
+            { $unwind: "$application_preferences.applications" },
+
+            /* SAFE PAYMENT ARRAY */
+            {
+                $addFields: {
+                    paymentArray: {
+                        $cond: [
+                            { $isArray: "$payment" },
+                            "$payment",
+                            []
+                        ]
+                    }
+                }
+            },
+
+            /* IS PAID */
+            {
+                $addFields: {
+                    isPaid: {
+                        $gt: [
+                            {
+                                $size: {
+                                    $filter: {
+                                        input: "$paymentArray",
+                                        as: "p",
+                                        cond: { $eq: ["$$p.status", "success"] }
+                                    }
+                                }
+                            },
+                            0
+                        ]
+                    }
+                }
+            },
+
+            /* GROUP */
+            {
+                $group: {
+                    _id: {
+                        stream: "$application_preferences.applications.stream",
+                        isPaid: "$isPaid"
+                    },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+        let aidedApplications = 0;
+        let selfFinanceApplications = 0;
+
+        let aidedFree = 0;
+        let aidedPaid = 0;
+
+        let selfFinanceFree = 0;
+        let selfFinancePaid = 0;
+
+        streamStatsAgg.forEach((item) => {
+            const { stream, isPaid } = item._id;
+            const count = item.count;
+
+            if (stream === "Aided") {
+                aidedApplications += count;
+
+                if (isPaid) aidedPaid += count;
+                else aidedFree += count;
+            }
+
+            if (stream === "Self-Finance") {
+                selfFinanceApplications += count;
+
+                if (isPaid) selfFinancePaid += count;
+                else selfFinanceFree += count;
+            }
+        });
+
 
         /* =========================
            RESPONSE
@@ -107,7 +190,17 @@ export const getApplicationStats = async (req: Request, res: Response) => {
                 freeApplications,
                 registered,
                 marksEntered,
-                courseWise
+                courseWise,
+
+                /* NEW STATS */
+                streamStats: {
+                    aidedApplications,
+                    selfFinanceApplications,
+                    aidedFree,
+                    aidedPaid,
+                    selfFinanceFree,
+                    selfFinancePaid
+                }
             }
         });
 
