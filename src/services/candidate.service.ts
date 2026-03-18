@@ -115,7 +115,8 @@ export const createCandidateService = async (
                 program_name: program_names[i] || programMap[program_code[i]] || "",
                 stream: program_streams[i],
                 status: "Draft",
-                preference_order: i + 1
+                preference_order: i + 1,
+                transaction_id: payment_details?.transaction_id
             });
         }
 
@@ -274,3 +275,95 @@ export const createCandidateService = async (
         throw err;
     }
 };
+
+/**
+ * 🚀 ADD MORE COURSES SERVICE
+ * Appends new applications and payment to an existing candidate
+ */
+export const addMoreCandidateCoursesService = async (
+    candidateId: string,
+    selected_courses: any[],
+    payment_details: any
+) => {
+    try {
+        const candidate = await CandidateAdmission.findById(candidateId);
+        if (!candidate) throw new Error("Candidate not found");
+
+        if (!selected_courses?.length) {
+            throw new Error("No courses selected to add");
+        }
+
+        const program_codes = selected_courses.map(c => c.course?.code || c.program_code);
+        const program_names = selected_courses.map(c => c.course?.name || c.program_name);
+        const program_streams = selected_courses.map(c => c.course?.stream || c.stream);
+
+        // Fetch programs for validation and names
+        const programs = await programsModel.find({
+            program_code: { $in: program_codes }
+        }).lean();
+
+        const programMap: Record<string, string> = {};
+        programs.forEach((p: any) => {
+            programMap[p.program_code] = p.program_name;
+        });
+
+        // 1. Generate NEW Application Numbers
+        const numbers = await getNextApplicationNumbers(program_codes.length);
+
+        const newApplications: any[] = [];
+        
+        if (!candidate.application_preferences) {
+            (candidate as any).application_preferences = { applications: [] };
+        }
+        
+        // Use a non-null assertion or cast since we just initialized it above
+        const appPrefs = candidate.application_preferences as any;
+        if (!appPrefs.applications) {
+            appPrefs.applications = [];
+        }
+        
+        const existingApplications = appPrefs.applications as any[];
+        const existingCount = existingApplications.length;
+
+        for (let i = 0; i < program_codes.length; i++) {
+            newApplications.push({
+                application_number: numbers[i],
+                application_type: candidate.appliedProgrammeType,
+                program_code: program_codes[i],
+                program_name: program_names[i] || programMap[program_codes[i]] || "",
+                stream: program_streams[i],
+                status: "Applied", // Since they just paid
+                preference_order: existingCount + i + 1,
+                transaction_id: payment_details.transaction_id
+            });
+        }
+
+        // 2. Append applications to candidate
+        existingApplications.push(...newApplications);
+
+        // 3. Append payment record
+        if (!candidate.payment) {
+            (candidate as any).payment = [];
+        }
+        (candidate.payment as any[]).push({
+            amount: payment_details.amount_paid || 0,
+            status: "success",
+            transaction_id: payment_details.transaction_id,
+            payment_date: payment_details.transaction_date ? new Date(payment_details.transaction_date) : new Date(),
+            payment_method: payment_details.payment_method || "ccavenue"
+        });
+
+        await candidate.save();
+
+        return {
+            success: true,
+            message: "Additional courses added successfully",
+            newApplications,
+            registration_number: candidate.registration_number
+        };
+
+    } catch (err: any) {
+        console.error("Error in addMoreCandidateCoursesService:", err);
+        throw err;
+    }
+};

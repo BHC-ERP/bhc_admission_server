@@ -9,6 +9,7 @@ import { createPaymentAuditLog } from '../../services/auditlog.service';
 import CandidateAdmission from '../../models/candidate.model';
 import { sendSMSService } from '../../services/sms.service';
 import { sendMailService } from '../../services/mail.service';
+import { addMoreCandidateCoursesService } from '../../services/candidate.service';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -250,6 +251,82 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         return res.status(500).json(errorPayload);
     }
 };
+
+// Initiate "Add More Courses" payment for existing candidates
+export const initiateAddMoreCoursesPayment = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        console.log("=== Add More Courses Payment Initiation Started ===");
+        const { amount, selected_courses, candidateId } = req.body;
+
+        if (!candidateId || !selected_courses || !selected_courses.length) {
+            return res.status(400).json({ message: "Candidate ID and selected courses are required" });
+        }
+
+        const candidate = await CandidateAdmission.findById(candidateId);
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+
+        // Generate unique order ID
+        const orderId = `BHC-ADD-${Date.now()}${Math.floor(Math.random() * 10000)}`;
+        
+        // Store pending payment data with Add More context
+        pendingPayments.set(orderId, {
+            candidateId,
+            selected_courses,
+            amount,
+            isAddMore: true,
+            timestamp: new Date().toISOString()
+        });
+
+        // Set expiration after 1 hour
+        setTimeout(() => pendingPayments.delete(orderId), 60 * 60 * 1000);
+
+        // Generate CCAvenue encrypted request
+        const encRequest = generateCCAvenueEncRequest({
+            order_id: orderId,
+            amount: amount,
+            currency: 'INR',
+            redirect_url: `${env.BASE_URL}/api/secure/payment/ccavenue/response`,
+            cancel_url: `${env.BASE_URL}/api/secure/payment/ccavenue/cancel`,
+            language: 'EN',
+            merchant_id: env.CCAVENUE_MERCHANT_ID,
+            customer_id: candidate.personal_details?.email,
+            customer_name: candidate.personal_details?.fullName,
+            customer_email: candidate.personal_details?.email,
+            customer_mobile: candidate.personal_details?.phone,
+            billing_address: [
+                candidate.address?.present_address?.door_no,
+                candidate.address?.present_address?.street,
+                candidate.address?.present_address?.village_town,
+                candidate.address?.present_address?.district,
+                candidate.address?.present_address?.state,
+                candidate.address?.present_address?.country
+            ].filter(Boolean).join(", "),
+            billing_name: candidate.personal_details?.fullName,
+            billing_zip: candidate.address?.present_address?.pincode,
+            billing_city: candidate.address?.present_address?.district,
+            billing_state: candidate.address?.present_address?.state,
+            billing_country: candidate.address?.present_address?.country,
+            billing_email: candidate.personal_details?.email,
+            billing_tel: candidate.personal_details?.phone
+        });
+
+        return res.status(200).json({
+            accessCode: env.CCAVENUE_ACCESS_CODE,
+            encRequest: encRequest,
+            ccavenueUrl: env.CCAVENUE_PAYMENT_URL
+        });
+
+    } catch (err) {
+        console.error("❌ Add More Courses payment initiation error:", err);
+        return res.status(500).json({
+            message: "Server error during payment initiation",
+            error: err instanceof Error ? err.message : "Unknown error"
+        });
+    }
+};
+
 // Handle CCAvenue payment response (success)
 export const handleCCAvenueResponse = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -305,9 +382,44 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
         console.log("Pending Payment Data Found");
 
-        const { candidateDetails } = pendingData;
+        const { candidateDetails, isAddMore, candidateId, selected_courses } = pendingData;
 
         if (order_status === "Success") {
+            if (isAddMore) {
+                console.log("✅ Add More Courses SUCCESS for order:", order_id);
+                try {
+                    const result = await addMoreCandidateCoursesService(candidateId, selected_courses, {
+                        amount_paid: parseFloat(amount),
+                        transaction_id: tracking_id,
+                        transaction_date: new Date().toISOString(),
+                        payment_method: "ccavenue"
+                    });
+
+                    await createPaymentAuditLog({
+                        personal_details: { candidateId },
+                        selected_courses: selected_courses,
+                        payment_details: {
+                            payment_method: "ccavenue",
+                            amount_paid: parseFloat(amount),
+                            status: "Success",
+                            transaction_id: tracking_id,
+                            bank_ref_no: bank_ref_no,
+                            transaction_date: new Date().toISOString(),
+                            is_add_more: true
+                        }
+                    });
+
+                    pendingPayments.delete(order_id);
+                    return res.redirect(
+                        `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success&type=add_more`
+                    );
+                } catch (error: any) {
+                    console.error("❌ Add More Courses failed:", error.message);
+                    return res.redirect(
+                        `${env.FRONTEND_URL}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
+                    );
+                }
+            }
 
             console.log("✅ Payment SUCCESS for order:", order_id);
 
@@ -449,9 +561,11 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             //         failure_message || "Payment failed"
             //     )}`
             // );
-            return res.redirect(
-                `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed`
-            );
+            const failureUrl = isAddMore 
+                ? `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed&type=add_more`
+                : `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed`;
+            
+            return res.redirect(failureUrl);
         }
 
     } catch (err) {
@@ -543,9 +657,12 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         console.log("Redirecting to Cancel Page");
 
-        return res.redirect(
-            `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}`
-        );
+        const isAddingMore = pendingData?.isAddMore;
+        const cancelUrl = isAddingMore
+            ? `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}&type=add_more`
+            : `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}`;
+
+        return res.redirect(cancelUrl);
 
     } catch (err) {
 
@@ -745,6 +862,14 @@ export const CheckSuccessStatusResponse = async (
                 expected: status,
                 actual: paymentData.status
             });
+        }
+
+        // ✅ Filter applications to ONLY show those for this transaction
+        const filteredApplications = (candidateData.application_preferences?.applications || [])
+            .filter((app: any) => app.transaction_id === transaction_id);
+
+        if (filteredApplications.length > 0) {
+            candidateData.application_preferences.applications = filteredApplications;
         }
 
         // ✅ RETURN FULL DATA (JSON)

@@ -421,6 +421,7 @@ const CandidateSchema = new mongoose.Schema({
                 },
                 admission_date: Date
             },
+            transaction_id: String,
             _id: false
         }]
     },

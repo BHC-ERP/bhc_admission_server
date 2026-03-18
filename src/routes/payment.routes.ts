@@ -1,5 +1,15 @@
 import { Router } from 'express';
-import { CheckFailureStatusResponse, CheckSuccessStatusResponse, directSaveApplication, getPaymentStatus, handleCCAvenueCancel, handleCCAvenueResponse, initiateCCAvenuePayment, testing_failurStatusResponse } from '../controllers/payments/payment.controller';
+import { 
+    CheckFailureStatusResponse, 
+    CheckSuccessStatusResponse, 
+    directSaveApplication, 
+    getPaymentStatus, 
+    handleCCAvenueCancel, 
+    handleCCAvenueResponse, 
+    initiateAddMoreCoursesPayment, 
+    initiateCCAvenuePayment, 
+    testing_failurStatusResponse 
+} from '../controllers/payments/payment.controller';
 const router = Router();
 
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
@@ -7,6 +17,7 @@ router.post('/payment/direct-save', directSaveApplication);
 
 // CCAvenue payment flow
 router.post('/payment/ccavenue/initiate', initiateCCAvenuePayment);
+router.post('/payment/add-more-courses/initiate', initiateAddMoreCoursesPayment);
 router.post('/payment/ccavenue/response', handleCCAvenueResponse);
 router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);
 
