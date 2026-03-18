@@ -401,6 +401,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 // ✅ CLEANUP
 
                 if (email) {
+                    console.log("------ Mail ------ Init :", email);
                     await sendMailService(email, registration_number.toString(), phone!);
                 }
 
