@@ -6,6 +6,7 @@ import { env } from '../../config/env';
 import { createCandidateService } from '../../services/candidate.service';
 import payment_log from '../../models/audit/payment_log';
 import { createPaymentAuditLog } from '../../services/auditlog.service';
+import CandidateAdmission from '../../models/candidate.model';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string): string {
@@ -479,36 +480,60 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
 
         const { transaction_id } = req.params;
 
-        console.log("Transaction ID:", transaction_id);
-
         if (!transaction_id) {
-
-            console.warn("Transaction ID missing");
-
             return res.status(400).json({
                 status: "error",
                 message: "Transaction ID required"
             });
         }
 
-        console.log("Checking database for transaction...");
+        console.log("Searching for transaction:", transaction_id);
+
+        // 🔍 Get FULL candidate document (no projection)
+        const candidate = await CandidateAdmission.findOne({
+            "payment.transaction_id": transaction_id
+        });
+
+        if (!candidate) {
+            return res.status(404).json({
+                status: "not_found",
+                transaction_id,
+                message: "Transaction not found"
+            });
+        }
+
+        // 🎯 Extract exact payment
+        const payment = candidate.payment.find(
+            (p: any) => p.transaction_id === transaction_id
+        );
+
+        if (!payment) {
+            return res.status(404).json({
+                status: "not_found",
+                transaction_id,
+                message: "Payment record not found"
+            });
+        }
+
+        console.log("✅ Payment found");
 
         return res.status(200).json({
-            status: "pending",
-            transaction_id,
-            message: "Payment status endpoint - implement with database"
+            status: payment.status,
+            transaction_id: payment.transaction_id,
+
+            payment,          // ✅ full payment object
+            candidate         // ✅ full candidate document
         });
 
     } catch (err) {
-
         console.error("❌ Payment Status Error:", err);
 
         return res.status(500).json({
+            status: "error",
             message: "Server error"
         });
     }
 };
-
 
 
 
