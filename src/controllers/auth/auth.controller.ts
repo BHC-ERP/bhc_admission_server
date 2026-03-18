@@ -230,13 +230,13 @@ export const candidateSignup = async (
 
         const existing = await CandidateAdmission.findOne({
             $or: [
-                { "personal_details.phone": mobile }, 
+                { "personal_details.phone": mobile },
             ]
         });
 
         if (existing) {
             console.log("3a. Duplicate found:", {
-                existing_phone: existing.personal_details?.phone, 
+                existing_phone: existing.personal_details?.phone,
                 registration_number: existing.registration_number
             });
             return res.status(409).json({
@@ -516,18 +516,7 @@ export const candidateSignup = async (
             console.log("13. Session set for candidate");
         }
 
-        const candidate_data = await CandidateAdmission.findOne(
-            { "personal_details.phone": candidateData.personal_details.phone },
-            {
-                registration_number: 1,
-                "personal_details.phone": 1,
-                "payment.$": 1
-            }
-        );
-
-        if (!candidate) {
-            throw new Error("Transaction not found");
-        }
+        // REMOVED THE PROBLEMATIC QUERY HERE
 
         const candidate_name = candidate.personal_details?.fullName || 'Candidate';
         const phone = candidate.personal_details?.phone;
