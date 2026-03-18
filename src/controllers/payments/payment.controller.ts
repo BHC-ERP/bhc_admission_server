@@ -391,7 +391,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             console.warn("Failure Message:", failure_message);
 
             await createPaymentAuditLog({
-                personal_details: candidateDetails || {},
+                personal_details: candidateDetails?.personal_details || {},
                 selected_courses: candidateDetails?.selected_courses || [],
                 payment_details: {
                     ...(candidateDetails?.payment_details || {}),
@@ -479,7 +479,7 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         // ✅ SAVE AUDIT LOG (IMPORTANT)
         await createPaymentAuditLog({
-            personal_details: candidateDetails || {},
+            personal_details: candidateDetails?.personal_details || {},
             selected_courses: candidateDetails?.selected_courses || [],
             payment_details: {
                 ...(candidateDetails?.payment_details || {}),
