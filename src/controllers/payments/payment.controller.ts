@@ -384,40 +384,90 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
     try {
 
         console.log("=========== CCAvenue Cancel Received ===========");
-
         console.log("Request Body:", JSON.stringify(req.body, null, 2));
 
-        const encResp = req.body;
+        // ✅ FIX: Extract encResp properly
+        const { encResp } = req.body;
+
+        if (!encResp) {
+            console.error("❌ No encResp found in cancel request");
+
+            return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=no_response`);
+        }
+
+        console.log("encResp type:", typeof encResp);
+
+        // ✅ Decrypt
         const decryptedResponse = decryptCCAvenueResponse(encResp);
 
-        console.log("Decrypted Response String:");
+        console.log("Decrypted Response:");
         console.log(decryptedResponse);
 
-        // Parse response
+        // ✅ Parse
         const responseParams = parseResponse(decryptedResponse);
 
         console.log("Parsed Response Params:");
         console.log(JSON.stringify(responseParams, null, 2));
 
+        const {
+            order_id,
+            order_status,
+            tracking_id,
+            bank_ref_no,
+            failure_message,
+            amount
+        } = responseParams;
 
-        const { orderNo } = req.body;
+        console.log("Order ID:", order_id);
+        console.log("Order Status:", order_status);
 
-        console.log("Order ID:", orderNo);
+        // ✅ Get pending data
+        const pendingData = pendingPayments.get(order_id);
 
-        if (orderNo) {
-            pendingPayments.delete(orderNo);
-            console.log("Pending Payment Removed:", orderNo);
+        if (!pendingData) {
+            console.warn("⚠️ No pending payment found for:", order_id);
+        }
+
+        const candidateDetails = pendingData?.candidateDetails;
+
+        // ✅ SAVE AUDIT LOG (IMPORTANT)
+        await createPaymentAuditLog({
+            personal_details: candidateDetails?.personal_details || {},
+            selected_courses: candidateDetails?.selected_courses || [],
+            payment_details: {
+                ...(candidateDetails?.payment_details || {}),
+                payment_method: "ccavenue",
+                amount_paid: amount ? parseFloat(amount) : 0,
+                status: "cancelled",
+                transaction_id: tracking_id || `CANCEL_${Date.now()}`,
+                bank_ref_no: bank_ref_no || null,
+                transaction_date: new Date().toISOString(),
+                gateway_response: responseParams,
+                failure_message: failure_message || "User cancelled payment"
+            }
+        });
+
+        console.log("✅ Cancel payment audit log saved");
+
+        // ✅ CLEANUP
+        if (order_id) {
+            pendingPayments.delete(order_id);
+            console.log("Pending Payment Removed:", order_id);
         }
 
         console.log("Redirecting to Cancel Page");
 
-        return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=cancelled`);
+        return res.redirect(
+            `${env.FRONTEND_URL}/payment/failure?reason=cancelled`
+        );
 
     } catch (err) {
 
         console.error("❌ Cancel Handler Error:", err);
 
-        return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=cancel_error`);
+        return res.redirect(
+            `${env.FRONTEND_URL}/payment/failure?reason=cancel_error`
+        );
     }
 };
 // Payment status endpoint
