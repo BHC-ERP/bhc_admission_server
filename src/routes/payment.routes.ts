@@ -10,12 +10,12 @@ router.post('/payment/ccavenue/initiate', initiateCCAvenuePayment);
 router.post('/payment/ccavenue/response', handleCCAvenueResponse);
 router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);
 
-// Payment status check
-router.get('/payment/status/:transaction_id', getPaymentStatus);
+// Payment status check(Payment check in CandidateModal)
+// router.get('/payment/status/:transaction_id', getPaymentStatus);
 
 
 router.get("/payment/failure/:reason", testing_failurStatusResponse);
-
+// Payment Check in Audit_log _model
 router.get("/payment/status/:transaction_id", ChecksuccessStatusResponse);
 
 
