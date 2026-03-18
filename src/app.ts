@@ -18,7 +18,7 @@ app.use(sessionMiddleware);
 
 // --- SECURITY MIDDLEWARE ---
 // Block Postman and direct browser URL access
-app.use(restrictDirectAccess);
+// app.use(restrictDirectAccess);
 
 // Routes
 app.use("/api", routes);
