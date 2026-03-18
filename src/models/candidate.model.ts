@@ -30,11 +30,9 @@ const CandidateSchema = new mongoose.Schema({
     admission_status: {
         current: {
             type: String,
-            enum: [
-                'Draft', 'Applied', 'Under Review', 'Provisional',
-                'Document Verification', 'Fee Pending',
-                'Admitted', 'Rejected', 'Cancelled',
-                'On Hold', 'Waitlisted'
+            enum: ['Draft', 'Applied', 'HOD_SELECTION',
+                'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
+                'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL'
             ],
             default: 'Draft'
         },
@@ -385,7 +383,9 @@ const CandidateSchema = new mongoose.Schema({
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Draft', 'Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT', 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT']
+                enum: ['Draft', 'Applied', 'HOD_SELECTION',
+                    'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
+                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
             },
             selected: [{
                 selected_by: {
@@ -453,18 +453,27 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== PAYMENT ==================== */
-    payment: {
-        amount: Number,
-        status: {
-            type: String,
-            enum: ['pending', 'exempted', 'success', 'failed'],
-            default: 'pending'
-        },
-        transaction_id: String,
-        payment_date: Date,
-        payment_method: String
-    },
-
+    payment: [
+        {
+            amount: {
+                type: Number,
+            },
+            status: {
+                type: String,
+                default: 'pending'
+            },
+            transaction_id: {
+                type: String
+            },
+            payment_date: {
+                type: Date,
+                default: Date.now
+            },
+            payment_method: {
+                type: String
+            }
+        }
+    ],
     /* ==================== METADATA ==================== */
     metadata: {
         version: { type: Number, default: 1 },

@@ -386,8 +386,8 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             registration_number: candidate.registration_number,
             personal_details: candidate.personal_details,
             personal_details_completion: personalDetailsPercentage,
-            payment_status: candidate.payment?.status || 'pending',
-            payment_details: candidate.payment || {},
+            payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : 'pending',
+            payment_details: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1] : {},
             documents: {
                 required_documents: candidate.documents?.required_documents || [],
                 uploaded_count: documentsUploaded,

@@ -55,10 +55,7 @@ interface AddressDetail {
     type: "Urban" | "Rural";
     door_no: string;
     street: string;
-    area: string;
-    landmark: string;
     village_town: string;
-    taluk: string;
     pincode: string;
     country: string;
     district: string;
@@ -381,13 +378,13 @@ export const candidateSignup = async (
             application_preferences: {
                 applications
             },
-            payment: {
+            payment: [{
                 amount: total_amount,
                 status: payment_status as "pending" | "partial" | "success" | "refunded" | "exempted" | "failed",
                 transaction_id: payment_details?.transaction_id,
                 payment_date: payment_details?.transaction_date ? new Date(payment_details.transaction_date) : undefined,
                 payment_method: payment_details?.payment_method
-            },
+            }],
             admission_status: {
                 current: "Draft" as const
             },
@@ -403,10 +400,7 @@ export const candidateSignup = async (
                 present_address: {
                     door_no: pad.door_no,
                     street: pad.street,
-                    area: pad.area,
-                    landmark: pad.landmark,
                     village_town: pad.village_town,
-                    taluk: pad.taluk,
                     district: pad.district,
                     state: pad.state,
                     country: pad.country || "India",
@@ -417,10 +411,7 @@ export const candidateSignup = async (
                     same_as_present: pmd.same_as_present,
                     door_no: pmd.door_no,
                     street: pmd.street,
-                    area: pmd.area,
-                    landmark: pmd.landmark,
                     village_town: pmd.village_town,
-                    taluk: pmd.taluk,
                     district: pmd.district,
                     state: pmd.state,
                     country: pmd.country || "India",
@@ -588,7 +579,7 @@ export const candidateLogin = async (
             id: candidate._id.toString(),
             registration_number: candidate.registration_number,
             role: "candidate",
-            payment_status: candidate.payment?.status,
+            payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : "pending",
         };
 
         const token = signToken(user);
@@ -598,7 +589,7 @@ export const candidateLogin = async (
                 id: candidate._id.toString(),
                 registration_number: candidate.registration_number,
                 role: "candidate",
-                payment_status: candidate.payment?.status || "pending",
+                payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : "pending",
             };
         }
 
