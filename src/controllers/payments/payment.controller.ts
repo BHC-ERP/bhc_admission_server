@@ -641,7 +641,7 @@ export const testing_failurStatusResponse = async (
     `);
 };
 
-export const ChecksuccessStatusResponse = async (
+export const CheckFailureStatusResponse = async (
     req: Request<{ transaction_id: string }, {}, {}, { status?: string }>,
     res: Response
 ): Promise<Response> => {
@@ -689,6 +689,74 @@ export const ChecksuccessStatusResponse = async (
 
 
 
+export const CheckSuccessStatusResponse = async (
+    req: Request<{ transaction_id: string }, {}, {}, { status?: string }>,
+    res: Response
+): Promise<Response> => {
+
+    try {
+        const { transaction_id } = req.params;
+        const { status } = req.query;
+
+        console.log("🟢 Payment Success Route Hit");
+        console.log("Transaction ID:", transaction_id);
+        console.log("Status:", status);
+
+        if (!transaction_id) {
+            return res.status(400).json({
+                message: "Transaction ID is required"
+            });
+        }
+
+        // ✅ FETCH FROM DB (CandidateAdmission model)
+        const candidateData: any = await CandidateAdmission.findOne({
+            "payment.transaction_id": transaction_id
+        }).lean();
+
+        if (!candidateData) {
+            return res.status(404).json({
+                message: "Candidate payment record not found"
+            });
+        }
+
+        // 🎯 Extract exact payment
+        const paymentData = candidateData.payment?.find(
+            (p: any) => p.transaction_id === transaction_id
+        );
+
+        if (!paymentData) {
+            return res.status(404).json({
+                message: "Specific payment record not found"
+            });
+        }
+
+        // ✅ CHECK STATUS (from query)
+        if (status && paymentData.status !== status) {
+            return res.status(400).json({
+                message: "Payment status mismatch",
+                expected: status,
+                actual: paymentData.status
+            });
+        }
+
+        // ✅ RETURN FULL DATA (JSON)
+        return res.status(200).json({
+            message: "Payment fetched successfully",
+            data: {
+                payment: paymentData,
+                candidate: candidateData
+            }
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error fetching payment:", error);
+
+        return res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
 
 
 
