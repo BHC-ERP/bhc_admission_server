@@ -194,7 +194,11 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             redirect_url: `${env.BASE_URL}/api/secure/payment/ccavenue/response`,
             cancel_url: `${env.BASE_URL}/api/secure/payment/ccavenue/cancel`,
             language: 'EN',
-            merchant_id: env.CCAVENUE_MERCHANT_ID, 
+            merchant_id: env.CCAVENUE_MERCHANT_ID,
+            customer_id: candidateDetails.personal_details.contact_info.email,
+            customer_name: candidateDetails.personal_details.basic_info.name,
+            customer_email: candidateDetails.personal_details.contact_info.email,
+            customer_mobile: candidateDetails.personal_details.contact_info.mobile,
             billing_address: candidateDetails.personal_details.contact_info.address || 'NA',
             billing_name: candidateDetails.personal_details.basic_info.name,
             billing_zip: 620017,
@@ -533,7 +537,7 @@ function generateCCAvenueEncRequest(params: any): string {
         throw new Error("CCAvenue working key not configured");
     }
 
-    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}`;
+    const data = `merchant_id=${params.merchant_id}&order_id=${params.order_id}&amount=${params.amount}&currency=${params.currency}&redirect_url=${params.redirect_url}&cancel_url=${params.cancel_url}&language=${params.language}&customer_id=${params.customer_id}&customer_name=${encodeURIComponent(params.customer_name)}&customer_email=${params.customer_email}&customer_mobile=${params.customer_mobile}&billing_address=${encodeURIComponent(params.billing_address)}&billing_name=${params.billing_name}&billing_zip=${params.billing_zip}&billing_email=${params.billing_email}&billing_tel=${params.billing_tel}`;
 
     console.log("CCAvenue Request String:");
     console.log(data);
