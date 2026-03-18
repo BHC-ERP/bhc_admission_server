@@ -392,13 +392,21 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         console.log("Decrypted Response String:");
         console.log(decryptedResponse);
-        const { order_id } = req.body;
 
-        console.log("Order ID:", order_id);
+        // Parse response
+        const responseParams = parseResponse(decryptedResponse);
 
-        if (order_id) {
-            pendingPayments.delete(order_id);
-            console.log("Pending Payment Removed:", order_id);
+        console.log("Parsed Response Params:");
+        console.log(JSON.stringify(responseParams, null, 2));
+
+
+        const { orderNo } = req.body;
+
+        console.log("Order ID:", orderNo);
+
+        if (orderNo) {
+            pendingPayments.delete(orderNo);
+            console.log("Pending Payment Removed:", orderNo);
         }
 
         console.log("Redirecting to Cancel Page");
