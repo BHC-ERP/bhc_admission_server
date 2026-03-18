@@ -1,6 +1,8 @@
 import { Request, Response, Router } from "express";
 import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
+import { getApplicationStats } from "../controllers/admin/stats.controller";
+import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
 
 
 const router = Router();
@@ -610,4 +612,7 @@ router.get(
   }
 );
 
+
+router.get("/dashboard/stats", getApplicationStats);
+router.get("/dashboard/programme-wise", getProgrammeWiseStats);
 export default router;
