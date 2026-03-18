@@ -7,6 +7,8 @@ import {
   cityController,
   pincodeController,
   casteListController,
+  dioceseListController,
+  subjectListController,
   personalDetailsController,
   addressController,
   academicBackgroundController,
@@ -34,9 +36,10 @@ import {
   checkCommunityNumber,
   getcandidatedata,
   getAllHODSelectionApplications,
-  getAllVerifySelectionApplications, 
+  getAllVerifySelectionApplications,
   BusRouteController,
-  HostelController
+  HostelController,
+  settingsController
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -67,10 +70,13 @@ router.get("/state", stateController);
 router.get("/city/:state_name", cityController);
 router.get("/pincode/:pincode", pincodeController);
 router.get("/caste_list", casteListController);
+router.get("/diocese_list", dioceseListController);
+router.get("/subjects_list", subjectListController);
 router.get("/bus_routes", BusRouteController);
 router.get("/hostel_list", HostelController);
 
-
+// ==================== SETTINGS ====================
+router.get("/settings", settingsController);
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);

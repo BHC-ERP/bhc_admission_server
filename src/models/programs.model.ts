@@ -11,9 +11,9 @@ const ProgrammeSchema = new mongoose.Schema({
     program_type: {
         type: String,
         enum: ['UG', 'PG']
-    }, 
+    },
     department_name: {
-        type: String, 
+        type: String,
     },
     special: {
         type: String,
@@ -31,6 +31,23 @@ const ProgrammeSchema = new mongoose.Schema({
     shift: {
         type: String,
         enum: ['Shift-1', 'Shift-2']
+    },
+    eligibility_subjects: [String],
+    eligibility_description: {
+        type: String,
+        required: true
+    },
+    cutoff: {
+        part_iii_subjects: [String],
+
+        part_iii_percentage: {
+            type: Number,
+            required: true
+        },
+        core_percentage: {
+            type: Number,
+            required: true
+        }
     },
     sanctioned_strength: Number
 }, { timestamps: true });

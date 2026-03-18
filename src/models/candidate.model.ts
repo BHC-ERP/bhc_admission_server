@@ -9,6 +9,11 @@ const CandidateSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
+    appliedProgrammeType: {
+        type: String,
+        enum: ['UG', 'PG', 'Diploma', 'Certificate', 'PhD'],
+        required: true
+    },
     academic_year: {
         type: String,
         default: "2026-2027",
@@ -25,11 +30,9 @@ const CandidateSchema = new mongoose.Schema({
     admission_status: {
         current: {
             type: String,
-            enum: [
-                'Draft', 'Applied', 'Under Review', 'Provisional',
-                'Document Verification', 'Fee Pending',
-                'Admitted', 'Rejected', 'Cancelled',
-                'On Hold', 'Waitlisted'
+            enum: ['Draft', 'Applied', 'HOD_SELECTION',
+                'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
+                'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL'
             ],
             default: 'Draft'
         },
@@ -68,7 +71,8 @@ const CandidateSchema = new mongoose.Schema({
             type: String,
             unique: true,
             match: [/^\d{12}$/, "Aadhar must be 12 digits"],
-            sparse: true
+            sparse: true,
+            set: (v: string) => v === "" ? undefined : v
         },
         caste: String,
         passportNumber: String,
@@ -78,7 +82,9 @@ const CandidateSchema = new mongoose.Schema({
         },
         community_number: {
             type: String,
-            unique: true
+            unique: true,
+            sparse: true,
+            set: (v: string) => v === "" ? undefined : v
         },
         bloodGroup: {
             type: String,
@@ -103,6 +109,8 @@ const CandidateSchema = new mongoose.Schema({
             type: String,
         },
         christianDenominationOther: String,
+        diocese: String,
+        dioceseState: String,
         differentlyAbled: {
             type: Boolean,
             default: false
@@ -159,6 +167,7 @@ const CandidateSchema = new mongoose.Schema({
             required: true
         },
         programmeName: String,
+        umis_number: String,
         school_education: {
             is_first_generation_learner: { type: Boolean, default: false },
             emis_number: String,
@@ -374,7 +383,9 @@ const CandidateSchema = new mongoose.Schema({
             preference_order: { type: Number, min: 1 },
             status: {
                 type: String,
-                enum: ['Draft', 'Applied', 'HOD_SELECTION', 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT', 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT']
+                enum: ['Draft', 'Applied', 'HOD_SELECTION',
+                    'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
+                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
             },
             selected: [{
                 selected_by: {
@@ -442,18 +453,27 @@ const CandidateSchema = new mongoose.Schema({
     },
 
     /* ==================== PAYMENT ==================== */
-    payment: {
-        amount: Number,
-        status: {
-            type: String,
-            enum: ['pending', 'exempted', 'success', 'failed'],
-            default: 'pending'
-        },
-        transaction_id: String,
-        payment_date: Date,
-        payment_method: String
-    },
-
+    payment: [
+        {
+            amount: {
+                type: Number,
+            },
+            status: {
+                type: String,
+                default: 'pending'
+            },
+            transaction_id: {
+                type: String
+            },
+            payment_date: {
+                type: Date,
+                default: Date.now
+            },
+            payment_method: {
+                type: String
+            }
+        }
+    ],
     /* ==================== METADATA ==================== */
     metadata: {
         version: { type: Number, default: 1 },

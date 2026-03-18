@@ -31,7 +31,40 @@ interface BasicInfo {
     community: string;
     community_number?: string;
     other_community?: string;
-    is_nri?: boolean;
+    is_nri: boolean;
+    religion: string;
+    christian_denomination?: string;
+    christianDenominationOther?: string;
+    diocese?: string;
+    dioceseState?: string;
+    caste: string;
+    special_status: "None" | "Orphan" | "Semi-Orphan" | "Deserted";
+    is_differently_abled: boolean;
+    disability_type?: string;
+    disability_percentage?: number;
+    is_ex_servicemen: boolean;
+    is_first_graduate: boolean;
+    emis_number?: string;
+    umis_number?: string;
+    aadhar_number?: string;
+    blood_group: string;
+    passport_number?: string;
+}
+
+interface AddressDetail {
+    type: "Urban" | "Rural";
+    door_no: string;
+    street: string;
+    village_town: string;
+    pincode: string;
+    country: string;
+    district: string;
+    state: string;
+}
+
+interface Address {
+    present_address: AddressDetail;
+    permanent_address: AddressDetail & { same_as_present: boolean };
 }
 
 interface ContactInfo {
@@ -51,6 +84,7 @@ interface PersonalDetails {
     basic_info: BasicInfo;
     contact_info: ContactInfo;
     application_info: ApplicationInfo;
+    address: Address;
 }
 
 export interface SignupRequest {
@@ -283,8 +317,8 @@ export const candidateSignup = async (
             total_amount = perApplicationAmount * application_count;
         }
 
-        const payment_status = total_amount === 0 ? "success" :
-            (payment_details?.status === "success" ? "success" : "pending");
+        const payment_status = total_amount === 0 ? "exempted" :
+            (payment_details?.status === "success" ? "success" : (payment_details?.status === "exempted" ? "exempted" : "pending"));
 
         // Validate date of birth
         const dateOfBirth = new Date(personal_details.basic_info.date_of_birth);
@@ -308,50 +342,92 @@ export const candidateSignup = async (
         const registration_number = await getNextRegistrationNumber();
 
         // Create candidate data with all required fields
+        const bi = personal_details.basic_info || {} as any;
+        const ci = personal_details.contact_info || {} as any;
+        const ai = personal_details.application_info || {} as any;
+        const ad = personal_details.address || { present_address: {}, permanent_address: {} } as any;
+        const pad = ad.present_address || {};
+        const pmd = ad.permanent_address || {};
+
         const candidateData = {
             registration_number,
+             appliedProgrammeType: application_type,
             personal_details: {
-                fullName: personal_details.basic_info.name,
+                fullName: bi.name,
                 dateOfBirth: dateOfBirth,
-                gender: personal_details.basic_info.gender as "Male" | "Female" | "Other" | "Prefer not to say",
-                email: personal_details.contact_info.email,
-                phone: personal_details.contact_info.mobile,
-                community: personal_details.basic_info.community == "Others" ? personal_details.basic_info.other_community : personal_details.basic_info.community,
-                community_number: personal_details.basic_info.community_number,
-                nationality: personal_details.basic_info.is_nri ? "Outside Indian" : "Indian",
+                gender: bi.gender as "Male" | "Female" | "Other",
+                email: ci.email,
+                phone: ci.mobile,
+                community: bi.community == "Others" ? bi.other_community : bi.community,
+                community_number: bi.community_number || undefined, // Use undefined for sparse index
+                nationality: bi.is_nri ? "Outside Indian" : "Indian",
+                aadharNumber: bi.aadhar_number,
+                bloodGroup: bi.blood_group as any,
+                religion: bi.religion === "Others" ? "Other" : bi.religion as any,
+                christianDenomination: bi.christian_denomination,
+                christianDenominationOther: bi.christianDenominationOther,
+                diocese: bi.diocese,
+                dioceseState: bi.dioceseState,
+                caste: bi.caste,
+                passportNumber: bi.passport_number,
+                differentlyAbled: bi.is_differently_abled,
+                differentlyAbledType: bi.disability_type,
+                differentlyAbledPercentage: bi.disability_percentage,
+                childOfExServicemen: bi.is_ex_servicemen
             },
             application_preferences: {
                 applications
             },
-            payment: {
+            payment: [{
                 amount: total_amount,
-                status: payment_status as "pending" | "partial" | "success" | "refunded",
+                status: payment_status as "pending" | "partial" | "success" | "refunded" | "exempted" | "failed",
                 transaction_id: payment_details?.transaction_id,
                 payment_date: payment_details?.transaction_date ? new Date(payment_details.transaction_date) : undefined,
                 payment_method: payment_details?.payment_method
-            },
+            }],
             admission_status: {
                 current: "Draft" as const
             },
             academic_background: {
-                programmeType: application_type
+                programmeType: application_type,
+                umis_number: bi.umis_number,
+                school_education: {
+                    is_first_generation_learner: bi.is_first_graduate,
+                    emis_number: bi.emis_number
+                }
             },
-            // Add empty objects for required fields to avoid validation errors
             address: {
                 present_address: {
-                    country: "India",
-                    state: "",
-                    district: "",
-                    pincode: ""
+                    door_no: pad.door_no,
+                    street: pad.street,
+                    village_town: pad.village_town,
+                    district: pad.district,
+                    state: pad.state,
+                    country: pad.country || "India",
+                    pincode: pad.pincode,
+                    type: pad.type
                 },
                 permanent_address: {
-                    same_as_present: false,
-                    country: "India"
+                    same_as_present: pmd.same_as_present,
+                    door_no: pmd.door_no,
+                    street: pmd.street,
+                    village_town: pmd.village_town,
+                    district: pmd.district,
+                    state: pmd.state,
+                    country: pmd.country || "India",
+                    pincode: pmd.pincode,
+                    type: pmd.type
                 }
             },
             parents: {
                 father_name: "",
-                mother_name: ""
+                mother_name: "",
+                guardian: {
+                    is_guardian: bi.special_status && bi.special_status !== "None",
+                    is_orphan: bi.special_status === "Orphan",
+                    is_semi_orphan: bi.special_status === "Semi-Orphan",
+                    is_deserted: bi.special_status === "Deserted"
+                }
             },
             metadata: {
                 ip_address: req.ip || req.socket.remoteAddress,
@@ -503,7 +579,7 @@ export const candidateLogin = async (
             id: candidate._id.toString(),
             registration_number: candidate.registration_number,
             role: "candidate",
-            payment_status: candidate.payment?.status,
+            payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : "pending",
         };
 
         const token = signToken(user);
@@ -513,7 +589,7 @@ export const candidateLogin = async (
                 id: candidate._id.toString(),
                 registration_number: candidate.registration_number,
                 role: "candidate",
-                payment_status: candidate.payment?.status || "pending",
+                payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : "pending",
             };
         }
 
@@ -595,43 +671,52 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
         let simulateType = req.body.simulateType;
 
         if (amount === 0) {
-            simulateType = "success";
+            simulateType = "exempted";
         }
 
-        if (!candidateDetails || !simulateType) {
-            return res.status(400).json({
-                message: "Candidate details, amount, and simulateType are required"
-            });
+        if (!candidateDetails) {
+            return res.status(400).json({ message: "Candidate details are required" });
         }
 
-        if (freeCommunities.includes(candidateDetails.personal_details.basic_info.community) || candidateDetails.personal_details.basic_info.is_nri === true) {
-            simulateType = "success";
+        if (!simulateType) {
+            return res.status(400).json({ message: "simulateType is required" });
         }
 
-        if (simulateType === "success") {
-            // Transform the data to match signup expectations with all required fields
-            const applicationInfo = candidateDetails.personal_details.application_info;
+        const pd = candidateDetails.personal_details || {};
+        const basicInfo = pd.basic_info || {};
+        const contactInfo = pd.contact_info || {};
+        const appInfo = pd.application_info || {};
+        const address = pd.address || { present_address: {}, permanent_address: {} };
 
+        if (freeCommunities.includes(basicInfo.community) || basicInfo.is_nri === true) {
+            simulateType = "exempted";
+        }
+
+        if (simulateType === "success" || simulateType === "exempted") {
             const transformedBody = {
                 personal_details: {
-                    basic_info: candidateDetails.personal_details.basic_info,
-                    contact_info: candidateDetails.personal_details.contact_info,
+                    basic_info: basicInfo,
+                    contact_info: contactInfo,
                     application_info: {
-                        application_count: applicationInfo.application_count,
-                        application_type: applicationInfo.application_type,
-                        program_code: applicationInfo.program_codes, // Rename to program_code
-                        program_names: applicationInfo.program_names, // Include for later use
-                        program_streams: applicationInfo.program_streams // Include for later use
+                        application_count: appInfo.application_count,
+                        application_type: appInfo.application_type,
+                        program_code: appInfo.program_codes || appInfo.program_code,
+                        program_names: appInfo.program_names,
+                        program_streams: appInfo.program_streams
+                    },
+                    address: {
+                        present_address: address.present_address || {},
+                        permanent_address: address.permanent_address || {}
                     }
                 },
                 selected_courses: candidateDetails.selected_courses,
                 payment_details: {
-                    ...candidateDetails.payment_details,
-                    payment_method: "ccavenue", // Fix payment method
+                    ...(candidateDetails.payment_details || {}),
+                    payment_method: "ccavenue",
                     amount_paid: amount,
-                    status: "success",
-                    transaction_id: `TXN${Date.now()}`,
-                    transaction_date: new Date().toISOString()
+                    status: simulateType === "exempted" ? "exempted" : "success",
+                    transaction_id: candidateDetails.payment_details?.transaction_id || (simulateType === "exempted" ? `EXEMPT${Date.now()}` : `TXN${Date.now()}`),
+                    transaction_date: candidateDetails.payment_details?.transaction_date || new Date().toISOString()
                 }
             };
 
@@ -643,21 +728,14 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             return await candidateSignup(signupReq, res);
 
         } else if (simulateType === "failure") {
-            return res.status(400).json({
-                message: "Payment failed",
-                status: "failed"
-            });
+            return res.status(400).json({ message: "Payment failed", status: "failed" });
         } else {
-            return res.status(400).json({
-                message: "Invalid simulateType. Must be 'success' or 'failure'"
-            });
+            return res.status(400).json({ message: "Invalid simulateType. Must be 'success', 'exempted' or 'failure'" });
         }
 
     } catch (err) {
         console.error("Payment simulation error:", err);
-        return res.status(500).json({
-            message: "Server error during payment simulation"
-        });
+        return res.status(500).json({ message: "Server error during payment simulation" });
     }
 };
 

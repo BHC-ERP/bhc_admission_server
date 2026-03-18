@@ -5,6 +5,8 @@ import collegedataModel from "../../models/collegedata.model";
 import countryModel from "../../models/country.model";
 import cityModel from "../../models/city.model";
 import casteModel from "../../models/caste.model";
+import dioceseModel from "../../models/diocese.model";
+import subjectModel from "../../models/subject.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
 import mongoose from "mongoose";
@@ -178,6 +180,35 @@ export const casteListController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+// GET /diocese_list
+export const dioceseListController = async (req: Request, res: Response) => {
+    try {
+        const diocese = await dioceseModel.find({}).lean();
+        return res.json({
+            count: diocese.length,
+            diocese
+        });
+    } catch (error) {
+        console.error("Error fetching diocese list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// GET /subjects_list
+export const subjectListController = async (req: Request, res: Response) => {
+    try {
+        const subjectResult = await subjectModel.findOne({}).select("subjects").lean();
+        return res.json({
+            count: subjectResult?.subjects?.length || 0,
+            subjects: subjectResult?.subjects || []
+        });
+    } catch (error) {
+        console.error("Error fetching subject list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 // GET /Bus route
 export const BusRouteController = async (req: Request, res: Response) => {
     try {
@@ -226,21 +257,37 @@ export const getcandidatedata = async (req: Request, res: Response) => {
         });
     }
 }
-// GET /Bus route
+
+import hostelModel from "../../models/hostel.model";
+
+// GET /hostel route
 export const HostelController = async (req: Request, res: Response) => {
+    try {
+        const hostelData = await hostelModel.find({}).lean();
+        return res.json({
+            count: hostelData.length,
+            hostel: hostelData
+        });
+    } catch (error) {
+        console.error("Error fetching hostel list:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+// GET /settings
+export const settingsController = async (req: Request, res: Response) => {
     try {
         const db = mongoose.connection.db;
         if (!db) {
             return res.status(500).json({ message: "Database connection not established" });
         }
-        const hostel = await db.collection("hostel_list").find({}).toArray();
+        const settings = await db.collection("settings").find({}).toArray();
 
         return res.json({
-            count: hostel.length,
-            hostel
+            count: settings.length,
+            settings
         });
     } catch (error) {
-        console.error("Error fetching hostel list:", error);
+        console.error("Error fetching settings:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -339,8 +386,8 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             registration_number: candidate.registration_number,
             personal_details: candidate.personal_details,
             personal_details_completion: personalDetailsPercentage,
-            payment_status: candidate.payment?.status || 'pending',
-            payment_details: candidate.payment || {},
+            payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : 'pending',
+            payment_details: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1] : {},
             documents: {
                 required_documents: candidate.documents?.required_documents || [],
                 uploaded_count: documentsUploaded,
