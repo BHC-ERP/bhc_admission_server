@@ -7,11 +7,32 @@ export const getApplicationStats = async (req: Request, res: Response) => {
 
         /* =========================
            TOTAL APPLICATIONS
-        ========================= */
-        const totalApplications = await CandidateAdmission.countDocuments({
-            appliedProgrammeType: programmeType
-        });
+        ========================= */ 
 
+        const totalApplicationsAgg = await CandidateAdmission.aggregate([
+            {
+                $match: {
+                    appliedProgrammeType: programmeType
+                }
+            },
+            {
+                $project: {
+                    appCount: {
+                        $size: {
+                            $ifNull: ["$application_preferences.applications", []]
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: "$appCount" }
+                }
+            }
+        ]);
+
+        const totalApplications = totalApplicationsAgg[0]?.total || 0;
         /* =========================
            PAID APPLICATIONS
         ========================= */
