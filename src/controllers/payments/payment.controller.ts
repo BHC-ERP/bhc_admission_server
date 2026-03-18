@@ -409,10 +409,13 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
             pendingPayments.delete(order_id);
 
+            // return res.redirect(
+            //     `${env.FRONTEND_URL}/payment/failure?reason=payment_failed&message=${encodeURIComponent(
+            //         failure_message || "Payment failed"
+            //     )}`
+            // );
             return res.redirect(
-                `${env.FRONTEND_URL}/payment/failure?reason=payment_failed&message=${encodeURIComponent(
-                    failure_message || "Payment failed"
-                )}`
+                `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed`
             );
         }
 
