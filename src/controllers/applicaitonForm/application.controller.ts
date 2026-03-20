@@ -388,6 +388,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             personal_details_completion: personalDetailsPercentage,
             payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : 'pending',
             payment_details: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1] : {},
+            all_payments: candidate.payment ? candidate.payment.filter((p: any) => p.status === 'success' || p.status === 'captured') : [],
             documents: {
                 required_documents: candidate.documents?.required_documents || [],
                 uploaded_count: documentsUploaded,
