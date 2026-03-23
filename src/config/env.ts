@@ -14,13 +14,21 @@ export const env = {
   BASE_URL: process.env.BASE_URL!,
   MAIL_USER: process.env.MAIL_USER || 'bishophebercollegeweb@gmail.com',
   MAIL_PASS: process.env.MAIL_PASS || 'qnxcfbldushagbih',
-  SMS_BASE_URL: process.env.SMS_BASE_URL ||'http://182.18.163.39/v3/api.php',
+  SMS_BASE_URL: process.env.SMS_BASE_URL || 'http://182.18.163.39/v3/api.php',
   SMS_USERNAME: process.env.SMS_USERNAME || 'bishopheber',
   SMS_API_KEY: process.env.SMS_API_KEY || '55a68eb05c87e78eaa2f',
-  SMS_SENDER_ID: process.env.SMS_SENDER_ID ||'BHCCOL',
+  SMS_SENDER_ID: process.env.SMS_SENDER_ID || 'BHCCOL',
   CCAVENUE_MERCHANT_ID: process.env.CCAVENUE_MERCHANT_ID!,
   CCAVENUE_ACCESS_CODE: process.env.CCAVENUE_ACCESS_CODE!,
   CCAVENUE_WORKING_KEY: process.env.CCAVENUE_WORKING_KEY!,
-  CCAVENUE_PAYMENT_URL: process.env.CCAVENUE_PAYMENT_URL || 'https://test.ccavenue.com/transaction/transaction.do?command=initiateTransaction',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173'
+  CCAVENUE_PAYMENT_URL: process.env.CCAVENUE_PAYMENT_URL!,
+  CCAVENUE_FRONTEND_URL: process.env.CCAVENUE_FRONTEND_URL!,
+  CCAVENUE_MERCHANT_ID_DEV: process.env.CCAVENUE_MERCHANT_ID_DEV!,
+  CCAVENUE_ACCESS_CODE_DEV: process.env.CCAVENUE_ACCESS_CODE_DEV!,
+  CCAVENUE_WORKING_KEY_DEV: process.env.CCAVENUE_WORKING_KEY_DEV!,
+  CCAVENUE_PAYMENT_URL_DEV: process.env.CCAVENUE_PAYMENT_URL_DEV!,
+  CCAVENUE_FRONTEND_URL_DEV: process.env.CCAVENUE_FRONTEND_URL_DEV!
 };
+
+
+

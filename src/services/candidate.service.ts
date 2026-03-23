@@ -311,17 +311,17 @@ export const addMoreCandidateCoursesService = async (
         const numbers = await getNextApplicationNumbers(program_codes.length);
 
         const newApplications: any[] = [];
-        
+
         if (!candidate.application_preferences) {
             (candidate as any).application_preferences = { applications: [] };
         }
-        
+
         // Use a non-null assertion or cast since we just initialized it above
         const appPrefs = candidate.application_preferences as any;
         if (!appPrefs.applications) {
             appPrefs.applications = [];
         }
-        
+
         const existingApplications = appPrefs.applications as any[];
         const existingCount = existingApplications.length;
 
@@ -332,7 +332,7 @@ export const addMoreCandidateCoursesService = async (
                 program_code: program_codes[i],
                 program_name: program_names[i] || programMap[program_codes[i]] || "",
                 stream: program_streams[i],
-                status: "Applied", // Since they just paid
+                status: candidate?.admission_status?.current === "Draft" ? "Draft" : "Applied",
                 preference_order: existingCount + i + 1,
                 transaction_id: payment_details.transaction_id
             });
@@ -366,4 +366,4 @@ export const addMoreCandidateCoursesService = async (
         console.error("Error in addMoreCandidateCoursesService:", err);
         throw err;
     }
-};
+};

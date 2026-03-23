@@ -10,10 +10,10 @@ import CandidateAdmission from '../../models/candidate.model';
 import { sendSMSService } from '../../services/sms.service';
 import { sendMailService } from '../../services/mail.service';
 import { addMoreCandidateCoursesService } from '../../services/candidate.service';
+import { getCCAvenueConfig } from '../../config/ccavenue.config';
 
 // Helper to decrypt CCAvenue response
-function decryptCCAvenueResponse(encResp: string): string {
-    const workingKey = env.CCAVENUE_WORKING_KEY;
+function decryptCCAvenueResponse(encResp: string, workingKey: string): string {
     const md5 = crypto.createHash('md5').update(workingKey).digest();
     const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
 
@@ -37,12 +37,12 @@ function parseResponse(response: string): any {
 const pendingPayments = new Map();
 
 // Free communities list (should match frontend)
-const freeCommunities = ['SC', 'ST', 'SAC'];
+const freeCommunities = ['SC', 'ST', 'SCA'];
 
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
 export const directSaveApplication = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { candidateDetails, amount,  exemptionReason } = req.body;
+        const { candidateDetails, amount, exemptionReason } = req.body;
 
         if (!candidateDetails) {
             return res.status(400).json({
@@ -174,10 +174,13 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         const orderId = `BHC-ADM-${Date.now()}${Math.floor(Math.random() * 10000)}`;
         console.log("Generated Order ID:", orderId);
 
+        const origin = req.headers.origin || req.headers.referer || '';
+
         // Store pending payment data
         pendingPayments.set(orderId, {
             candidateDetails,
             amount,
+            origin, // Save origin for the response handler
             timestamp: new Date().toISOString()
         });
 
@@ -191,15 +194,17 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
 
         console.log("Generating CCAvenue encrypted request...");
 
+        const ccConfig = getCCAvenueConfig(req);
+
         // Generate CCAvenue encrypted request
         const encRequest = generateCCAvenueEncRequest({
             order_id: orderId,
             amount: amount,
             currency: 'INR',
-            redirect_url: `${env.BASE_URL}/api/secure/payment/ccavenue/response`,
-            cancel_url: `${env.BASE_URL}/api/secure/payment/ccavenue/cancel`,
+            redirect_url: ccConfig.redirectUrl,
+            cancel_url: ccConfig.cancelUrl,
             language: 'EN',
-            merchant_id: env.CCAVENUE_MERCHANT_ID,
+            merchant_id: ccConfig.merchantId,
             customer_id: candidateDetails.personal_details.contact_info.email,
             customer_name: candidateDetails.personal_details.basic_info.name,
             customer_email: candidateDetails.personal_details.contact_info.email,
@@ -224,9 +229,9 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         console.log("Encrypted Request Generated Successfully");
 
         const responsePayload = {
-            accessCode: env.CCAVENUE_ACCESS_CODE,
+            accessCode: ccConfig.accessCode,
             encRequest: encRequest,
-            ccavenueUrl: env.CCAVENUE_PAYMENT_URL
+            ccavenueUrl: ccConfig.paymentUrl
         };
 
         console.log("Returning Payment Initiation Response:");
@@ -269,7 +274,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
 
         // Generate unique order ID
         const orderId = `BHC-ADD-${Date.now()}${Math.floor(Math.random() * 10000)}`;
-        
+
         // Transform candidate into candidateDetails format for audit log / failure page
         const candidateDetails = {
             personal_details: {
@@ -297,6 +302,44 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
             step_completed: 4
         };
 
+        const origin = req.headers.origin || req.headers.referer || '';
+
+        // --- Handle Free Add More Courses Directly ---
+        if (amount === 0) {
+            console.log("✅ Free Add More Courses detected. Saving directly...");
+
+            const transaction_id = `BHC-EXEMPT-${Date.now()}`;
+
+            const result = await addMoreCandidateCoursesService(candidateId, selected_courses, {
+                amount_paid: 0,
+                transaction_id: transaction_id,
+                transaction_date: new Date().toISOString(),
+                payment_method: "exempted"
+            });
+
+            await createPaymentAuditLog({
+                personal_details: { candidateId },
+                selected_courses: selected_courses,
+                payment_details: {
+                    payment_method: "exempted",
+                    amount_paid: 0,
+                    status: "Success",
+                    transaction_id: transaction_id,
+                    transaction_date: new Date().toISOString(),
+                    is_add_more: true,
+                    is_exempted: true,
+                    exemption_reason: 'ZERO_FEE'
+                }
+            });
+
+            return res.status(200).json({
+                status: 'success',
+                message: 'Additional courses added successfully',
+                data: result
+            });
+        }
+        // --- End Handle Free ---
+
         // Store pending payment data with Add More context
         pendingPayments.set(orderId, {
             candidateId,
@@ -304,21 +347,24 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
             selected_courses,
             amount,
             isAddMore: true,
+            origin, // Save origin for the response handler
             timestamp: new Date().toISOString()
         });
 
         // Set expiration after 1 hour
         setTimeout(() => pendingPayments.delete(orderId), 60 * 60 * 1000);
 
+        const ccConfig = getCCAvenueConfig(req);
+
         // Generate CCAvenue encrypted request
         const encRequest = generateCCAvenueEncRequest({
             order_id: orderId,
             amount: amount,
             currency: 'INR',
-            redirect_url: `${env.BASE_URL}/api/secure/payment/ccavenue/response`,
-            cancel_url: `${env.BASE_URL}/api/secure/payment/ccavenue/cancel`,
+            redirect_url: ccConfig.redirectUrl,
+            cancel_url: ccConfig.cancelUrl,
             language: 'EN',
-            merchant_id: env.CCAVENUE_MERCHANT_ID,
+            merchant_id: ccConfig.merchantId,
             customer_id: candidate.personal_details?.email,
             customer_name: candidate.personal_details?.fullName,
             customer_email: candidate.personal_details?.email,
@@ -341,9 +387,9 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         });
 
         return res.status(200).json({
-            accessCode: env.CCAVENUE_ACCESS_CODE,
+            accessCode: ccConfig.accessCode,
             encRequest: encRequest,
-            ccavenueUrl: env.CCAVENUE_PAYMENT_URL
+            ccavenueUrl: ccConfig.paymentUrl
         });
 
     } catch (err) {
@@ -367,13 +413,41 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
         if (!encResp) {
             console.error("❌ No encryption response received from CCAvenue");
 
-            return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=no_response`);
+            // At this point we don't know the order_id, so we don't know the origin.
+            // Best effort fallback to env.CCAVENUE_FRONTEND_URL
+            const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
         }
 
         console.log("Encrypted Response Length:", encResp.length);
 
-        // Decrypt response
-        const decryptedResponse = decryptCCAvenueResponse(encResp);
+        // We can't decrypt yet without knowing the origin, and we can't get origin
+        // easily without decrypting the order_id.
+        // BUT CCAvenue usually sends order_no in the unencrypted POST body as well.
+        // Let's check if we can extract orderNo from req.body directly
+        let order_id = req.body.orderNo;
+
+        // If orderNo isn't in req.body, wait, the standard CCAvenue response only gives encResp.
+        // We MUST decrypt to get order_id. So how do we know which key to use?
+        // Let's try dev key first, if it fails, try prod key. Or vice versa.
+        let decryptedResponse = '';
+        let origin = '';
+
+        try {
+            // Try Production Key First
+            decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY);
+            const tryParse = parseResponse(decryptedResponse);
+            if (!tryParse.order_id) throw new Error("Not prod key");
+        } catch (e) {
+            // Try Dev Key
+            try {
+                decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY_DEV);
+            } catch (err2) {
+                console.error("❌ Failed to decrypt with both keys");
+                const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+                return res.redirect(`${fallbackUrl}/payment/failure?reason=decryption_failed`);
+            }
+        }
 
         console.log("Decrypted Response String:");
         console.log(decryptedResponse);
@@ -385,13 +459,13 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
         console.log(JSON.stringify(responseParams, null, 2));
 
         const {
-            order_id,
             order_status,
             amount,
             tracking_id,
             bank_ref_no,
             failure_message
         } = responseParams;
+        order_id = responseParams.order_id; // Get confirmed order_id
 
         console.log("Order ID:", order_id);
         console.log("Order Status:", order_status);
@@ -404,9 +478,12 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
         if (!pendingData) {
             console.error(`❌ Invalid order or expired order: ${order_id}`);
-
-            return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=invalid_order`);
+            const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+            return res.redirect(`${fallbackUrl}/payment/failure?reason=invalid_order`);
         }
+
+        origin = pendingData.origin || '';
+        const ccConfig = getCCAvenueConfig({ origin });
 
         console.log("Pending Payment Data Found");
 
@@ -439,12 +516,12 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
                     pendingPayments.delete(order_id);
                     return res.redirect(
-                        `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success&type=add_more`
+                        `${ccConfig.frontendUrl}/payment/success?transaction_id=${tracking_id}&status=success&type=add_more`
                     );
                 } catch (error: any) {
                     console.error("❌ Add More Courses failed:", error.message);
                     return res.redirect(
-                        `${env.FRONTEND_URL}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
+                        `${ccConfig.frontendUrl}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
                     );
                 }
             }
@@ -550,14 +627,14 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
 
                 // ✅ REDIRECT (ONLY ONE RESPONSE)
                 return res.redirect(
-                    `${env.FRONTEND_URL}/payment/success?transaction_id=${tracking_id}&status=success`
+                    `${ccConfig.frontendUrl}/payment/success?transaction_id=${tracking_id}&status=success`
                 );
 
             } catch (error: any) {
                 console.error("❌ Signup failed:", error.message);
 
                 return res.redirect(
-                    `${env.FRONTEND_URL}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
+                    `${ccConfig.frontendUrl}/payment/failure?status=error&message=${encodeURIComponent(error.message)}`
                 );
             }
         } else {
@@ -589,20 +666,18 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             //         failure_message || "Payment failed"
             //     )}`
             // );
-            const failureUrl = isAddMore 
-                ? `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed&type=add_more`
-                : `${env.FRONTEND_URL}/payment/failure?transaction_id=${tracking_id}&status=failed`;
-            
+            const failureUrl = isAddMore
+                ? `${ccConfig.frontendUrl}/payment/failure?transaction_id=${tracking_id}&status=failed&type=add_more`
+                : `${ccConfig.frontendUrl}/payment/failure?transaction_id=${tracking_id}&status=failed`;
+
             return res.redirect(failureUrl);
         }
 
     } catch (err) {
 
         console.error("❌ CCAvenue Response Handling Error:", err);
-
-        return res.redirect(
-            `${env.FRONTEND_URL}/payment/failure?reason=server_error`
-        );
+        const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+        return res.redirect(`${fallbackUrl}/payment/failure?reason=server_error`);
     }
 };
 
@@ -613,19 +688,32 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
         console.log("=========== CCAvenue Cancel Received ===========");
         console.log("Request Body:", JSON.stringify(req.body, null, 2));
 
-        // ✅ FIX: Extract encResp properly
         const { encResp } = req.body;
 
         if (!encResp) {
             console.error("❌ No encResp found in cancel request");
-
-            return res.redirect(`${env.FRONTEND_URL}/payment/failure?reason=no_response`);
+            const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
         }
 
         console.log("encResp type:", typeof encResp);
 
-        // ✅ Decrypt
-        const decryptedResponse = decryptCCAvenueResponse(encResp);
+        let decryptedResponse = '';
+        let order_id = '';
+
+        try {
+            decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY);
+            const tryParse = parseResponse(decryptedResponse);
+            if (!tryParse.order_id) throw new Error("Not prod key");
+        } catch (e) {
+            try {
+                decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY_DEV);
+            } catch (err2) {
+                console.error("❌ Failed to decrypt cancel response");
+                const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+                return res.redirect(`${fallbackUrl}/payment/failure?reason=decryption_failed`);
+            }
+        }
 
         console.log("Decrypted Response:");
         console.log(decryptedResponse);
@@ -637,19 +725,21 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
         console.log(JSON.stringify(responseParams, null, 2));
 
         const {
-            order_id,
             order_status,
             tracking_id,
             bank_ref_no,
             failure_message,
             amount
         } = responseParams;
+        order_id = responseParams.order_id;
 
         console.log("Order ID:", order_id);
         console.log("Order Status:", order_status);
 
         // ✅ Get pending data
         const pendingData = pendingPayments.get(order_id);
+        const origin = pendingData?.origin || '';
+        const ccConfig = getCCAvenueConfig({ origin });
 
         if (!pendingData) {
             console.warn("⚠️ No pending payment found for:", order_id);
@@ -687,18 +777,16 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         const isAddingMore = pendingData?.isAddMore;
         const cancelUrl = isAddingMore
-            ? `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}&type=add_more`
-            : `${env.FRONTEND_URL}/payment/failure?reason=cancelled&transaction_id=${tracking_id}`;
+            ? `${ccConfig.frontendUrl}/payment/failure?reason=cancelled&transaction_id=${tracking_id}&type=add_more`
+            : `${ccConfig.frontendUrl}/payment/failure?reason=cancelled&transaction_id=${tracking_id}`;
 
         return res.redirect(cancelUrl);
 
     } catch (err) {
 
         console.error("❌ Cancel Handler Error:", err);
-
-        return res.redirect(
-            `${env.FRONTEND_URL}/payment/failure?reason=cancel_error`
-        );
+        const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
+        return res.redirect(`${fallbackUrl}/payment/failure?reason=cancel_error`);
     }
 };
 // Payment status endpoint
