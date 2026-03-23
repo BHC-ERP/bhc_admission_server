@@ -162,10 +162,6 @@ interface ValidationError extends Error {
 
 const freeCommunities = ["SC", "ST", "SCA"];
 
-
-
-
-
 // Candidate Signup
 export const candidateSignup = async (
     req: Request<{}, {}, SignupRequest>,
