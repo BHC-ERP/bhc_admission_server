@@ -289,6 +289,8 @@ const CandidateSchema = new mongoose.Schema({
             },
             attempts: { type: Number, default: 1 },
             waiting_for_result: { type: Boolean, default: false },
+            is_completed: { type: Boolean, default: false },
+            batch: String,
             _id: false
         }],
         entrance_exams: [{
@@ -325,6 +327,7 @@ const CandidateSchema = new mongoose.Schema({
         mother_mobile: String,
         mother_occupation: String,
         mother_income: String,
+        mother_tongue: String,
         guardian: {
             is_guardian: { type: Boolean, default: false },
             guardian_name: String,
