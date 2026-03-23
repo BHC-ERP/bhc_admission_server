@@ -95,7 +95,7 @@ router.get("/personal_details/:regId", getPersonalDataController);
 router.get("/parents_details/:regId", getParentsDetailsController);
 router.get("/address/:regId", getAddressController);
 router.get("/academic_background/:regId", getAcademicBackgroundController);
-router.get("/higher_education/:regId", getBankDetailsController);
+router.get("/bank_details/:regId", getBankDetailsController);
 router.get("/category_facilities/:regId", getCategoryFacilitiesController);
 
 // ==================== APPLICATION FORM ROUTES ====================
@@ -105,6 +105,8 @@ router.post("/academic_background/:regId", academicBackgroundController);
 router.post("/parents_details/:regId", parentsDetailsController);
 router.post("/bank_details/:regId", bankDetailsController);
 router.post("/category_facilities/:regId", categoryFacilitiesController);
+
+// ====================CHECK DUPLICATE DATAS ====================
 router.get("/check_mobile/:mobile", checkmobile_number);
 router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
 router.get("/check_aadharNumber/:aadharNumber", checkAadharNumber);
