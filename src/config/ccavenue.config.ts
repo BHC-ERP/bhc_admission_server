@@ -17,7 +17,7 @@ export function getCCAvenueConfig(req: Request | { origin: string }): CCAvenueCo
     // If it's an Express request object, get from headers. 
     // If it's a direct origin string pass (from pendingPayments), use that.
     let originStr = '';
-    
+
     if ('headers' in req) {
         originStr = req.headers.origin || req.headers.referer || '';
     } else {

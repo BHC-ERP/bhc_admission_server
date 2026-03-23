@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { 
-    CheckFailureStatusResponse, 
-    CheckSuccessStatusResponse, 
-    directSaveApplication, 
-    getPaymentStatus, 
-    handleCCAvenueCancel, 
-    handleCCAvenueResponse, 
-    initiateAddMoreCoursesPayment, 
-    initiateCCAvenuePayment, 
-    testing_failurStatusResponse 
+import {
+    CheckFailureStatusResponse,
+    CheckSuccessStatusResponse,
+    directSaveApplication,
+    getPaymentStatus,
+    handleCCAvenueCancel,
+    handleCCAvenueResponse,
+    initiateAddMoreCoursesPayment,
+    initiateCCAvenuePayment,
+    testing_failurStatusResponse
 } from '../controllers/payments/payment.controller';
 const router = Router();
 
@@ -17,7 +17,9 @@ router.post('/payment/direct-save', directSaveApplication);
 
 // CCAvenue payment flow
 router.post('/payment/ccavenue/initiate', initiateCCAvenuePayment);
+//Paid application add more courses
 router.post('/payment/add-more-courses/initiate', initiateAddMoreCoursesPayment);
+
 router.post('/payment/ccavenue/response', handleCCAvenueResponse);
 router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);
 

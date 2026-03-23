@@ -37,12 +37,12 @@ function parseResponse(response: string): any {
 const pendingPayments = new Map();
 
 // Free communities list (should match frontend)
-const freeCommunities = ['SC', 'ST', 'SAC'];
+const freeCommunities = ['SC', 'ST', 'SCA'];
 
 // Direct save for exempted candidates (NRI, Reserved, Zero Fee)
 export const directSaveApplication = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const { candidateDetails, amount,  exemptionReason } = req.body;
+        const { candidateDetails, amount, exemptionReason } = req.body;
 
         if (!candidateDetails) {
             return res.status(400).json({
@@ -193,7 +193,7 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         }, 60 * 60 * 1000);
 
         console.log("Generating CCAvenue encrypted request...");
-        
+
         const ccConfig = getCCAvenueConfig(req);
 
         // Generate CCAvenue encrypted request
@@ -274,7 +274,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
 
         // Generate unique order ID
         const orderId = `BHC-ADD-${Date.now()}${Math.floor(Math.random() * 10000)}`;
-        
+
         // Transform candidate into candidateDetails format for audit log / failure page
         const candidateDetails = {
             personal_details: {
@@ -303,6 +303,42 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         };
 
         const origin = req.headers.origin || req.headers.referer || '';
+
+        // --- Handle Free Add More Courses Directly ---
+        if (amount === 0) {
+            console.log("✅ Free Add More Courses detected. Saving directly...");
+
+            const transaction_id = `BHC-EXEMPT-${Date.now()}`;
+
+            const result = await addMoreCandidateCoursesService(candidateId, selected_courses, {
+                amount_paid: 0,
+                transaction_id: transaction_id,
+                transaction_date: new Date().toISOString(),
+                payment_method: "exempted"
+            });
+
+            await createPaymentAuditLog({
+                personal_details: { candidateId },
+                selected_courses: selected_courses,
+                payment_details: {
+                    payment_method: "exempted",
+                    amount_paid: 0,
+                    status: "Success",
+                    transaction_id: transaction_id,
+                    transaction_date: new Date().toISOString(),
+                    is_add_more: true,
+                    is_exempted: true,
+                    exemption_reason: 'ZERO_FEE'
+                }
+            });
+
+            return res.status(200).json({
+                status: 'success',
+                message: 'Additional courses added successfully',
+                data: result
+            });
+        }
+        // --- End Handle Free ---
 
         // Store pending payment data with Add More context
         pendingPayments.set(orderId, {
@@ -396,7 +432,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
         // Let's try dev key first, if it fails, try prod key. Or vice versa.
         let decryptedResponse = '';
         let origin = '';
-        
+
         try {
             // Try Production Key First
             decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY);
@@ -445,7 +481,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
             return res.redirect(`${fallbackUrl}/payment/failure?reason=invalid_order`);
         }
-        
+
         origin = pendingData.origin || '';
         const ccConfig = getCCAvenueConfig({ origin });
 
@@ -630,10 +666,10 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             //         failure_message || "Payment failed"
             //     )}`
             // );
-            const failureUrl = isAddMore 
+            const failureUrl = isAddMore
                 ? `${ccConfig.frontendUrl}/payment/failure?transaction_id=${tracking_id}&status=failed&type=add_more`
                 : `${ccConfig.frontendUrl}/payment/failure?transaction_id=${tracking_id}&status=failed`;
-            
+
             return res.redirect(failureUrl);
         }
 
@@ -664,7 +700,7 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         let decryptedResponse = '';
         let order_id = '';
-        
+
         try {
             decryptedResponse = decryptCCAvenueResponse(encResp, env.CCAVENUE_WORKING_KEY);
             const tryParse = parseResponse(decryptedResponse);
