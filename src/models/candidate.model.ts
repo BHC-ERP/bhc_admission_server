@@ -339,6 +339,7 @@ const CandidateSchema = new mongoose.Schema({
 
     /* ==================== CATEGORY AND FACILITIES ==================== */
     category_and_facilities: {
+        is_completed: { type: Boolean, default: false },
         facilities: {
             hostel: {
                 required: { type: Boolean, default: false }
