@@ -275,12 +275,20 @@ const CandidateSchema = new mongoose.Schema({
                     ]
                 }
             },
+            part_wise_marks: {
+                part1: { total_cgpa: Number, acquired_cgpa: Number },
+                part2: { total_cgpa: Number, acquired_cgpa: Number },
+                part3: { total_cgpa: Number, acquired_cgpa: Number },
+                part4: { total_cgpa: Number, acquired_cgpa: Number },
+                part5: { total_cgpa: Number, acquired_cgpa: Number },
+            },
             arrears: {
                 had_arrears: { type: Boolean, default: false },
                 cleared: { type: Boolean, default: false },
                 count: { type: Number, min: 0, default: 0 }
             },
             attempts: { type: Number, default: 1 },
+            waiting_for_result: { type: Boolean, default: false },
             _id: false
         }],
         entrance_exams: [{

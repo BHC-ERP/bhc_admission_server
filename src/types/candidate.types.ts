@@ -159,11 +159,19 @@ export interface UndergraduateEducation {
     cgpa?: number;
     class?: string;
   };
+  part_wise_marks?: {
+    part1: { total_cgpa: number; acquired_cgpa: number };
+    part2: { total_cgpa: number; acquired_cgpa: number };
+    part3: { total_cgpa: number; acquired_cgpa: number };
+    part4: { total_cgpa: number; acquired_cgpa: number };
+    part5: { total_cgpa: number; acquired_cgpa: number };
+  };
   arrears?: {
     had_arrears?: boolean;
     cleared?: boolean;
     count?: number;
   };
+  waiting_for_result?: boolean;
 }
 
 export interface AcademicBackground {
