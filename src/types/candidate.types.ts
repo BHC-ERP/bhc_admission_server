@@ -81,6 +81,7 @@ export interface ParentsInfo {
   mother_mobile?: number;
   mother_occupation?: string;
   mother_income?: string;
+  mother_tongue?: string;
   guardian?: {
     is_guardian?: boolean;
     guardian_name?: string;
@@ -172,6 +173,8 @@ export interface UndergraduateEducation {
     count?: number;
   };
   waiting_for_result?: boolean;
+  is_completed?: boolean;
+  batch?: string;
 }
 
 export interface AcademicBackground {
