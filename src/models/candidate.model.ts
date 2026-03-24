@@ -131,8 +131,7 @@ const CandidateSchema = new mongoose.Schema({
             state: String,
             country: { type: String, default: "India" },
             pincode: {
-                type: String,
-                match: [/^\d{6}$/, "Invalid pincode"]
+                type: String, 
             },
             type: {
                 type: String,
