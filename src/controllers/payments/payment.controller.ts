@@ -11,6 +11,7 @@ import { sendSMSService } from '../../services/sms.service';
 import { sendMailService } from '../../services/mail.service';
 import { addMoreCandidateCoursesService } from '../../services/candidate.service';
 import { getCCAvenueConfig } from '../../config/ccavenue.config';
+import mongoose from 'mongoose';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string, workingKey: string): string {
@@ -183,6 +184,14 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             origin, // Save origin for the response handler
             timestamp: new Date().toISOString()
         });
+       await mongoose.connection
+  .collection("payment_initiated")
+  .insertOne({
+    candidateDetails,
+    amount,
+    origin,
+    timestamp: new Date().toISOString()
+  });
 
         console.log("Pending payment stored in memory for order:", orderId);
 
@@ -416,7 +425,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             // At this point we don't know the order_id, so we don't know the origin.
             // Best effort fallback to env.CCAVENUE_FRONTEND_URL
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
-            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
+            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`); 
         }
 
         console.log("Encrypted Response Length:", encResp.length);
@@ -1008,6 +1017,70 @@ export const CheckSuccessStatusResponse = async (
 };
 
 
+
+
+// Get all payments (Audit Logs with Pagination)
+export const getAllPayments = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        const total = await payment_log.countDocuments();
+        let payments = await payment_log.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        // Enrich payments with Candidate details to replace anonymous/na
+        const candidateIds = payments
+            .map((p: any) => p.personal_details?.candidateId)
+            .filter((id: any) => id && typeof id === 'string' && id.length === 24);
+
+        if (candidateIds.length > 0) {
+            const candidates = await CandidateAdmission.find(
+                { _id: { $in: candidateIds } },
+                { 'personal_details.fullName': 1, 'personal_details.email': 1, 'personal_details.phone': 1 }
+            ).lean();
+
+            const candidateMap = new Map();
+            candidates.forEach((c: any) => candidateMap.set(c._id.toString(), c));
+
+            payments = payments.map((payment: any) => {
+                const cId = payment.personal_details?.candidateId;
+                if (cId && candidateMap.has(cId.toString())) {
+                    const cData = candidateMap.get(cId.toString());
+                    
+                    if (!payment.personal_details) payment.personal_details = {};
+                    if (!payment.personal_details.basic_info) payment.personal_details.basic_info = {};
+                    if (!payment.personal_details.contact_info) payment.personal_details.contact_info = {};
+                    
+                    payment.personal_details.basic_info.name = cData.personal_details?.fullName || "anonymous";
+                    payment.personal_details.contact_info.email = cData.personal_details?.email || "n/a";
+                    payment.personal_details.contact_info.mobile = cData.personal_details?.phone || "n/a";
+                }
+                return payment;
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            data: payments
+        });
+    } catch (error: any) {
+        console.error("❌ Error fetching all payments:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
 
 // Helper function to generate CCAvenue encrypted request
 function generateCCAvenueEncRequest(params: any): string {

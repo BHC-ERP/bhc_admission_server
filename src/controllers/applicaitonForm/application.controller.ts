@@ -517,6 +517,46 @@ export const getAllVerifySelectionApplications = async (req: Request, res: Respo
     }
 };
 
+// GET /all (Admin: Get all applications)
+export const getAllApplications = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        const total = await CandidateAdmission.countDocuments();
+        const data = await CandidateAdmission.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No applications found"
+            });
+        }
+
+        return res.json({
+            success: true,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching all applications:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
+
 // =====================Get Application Form Controllers====================
 
 export const getPersonalDataController = async (req: Request, res: Response) => {

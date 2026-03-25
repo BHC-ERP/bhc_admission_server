@@ -131,7 +131,8 @@ const CandidateSchema = new mongoose.Schema({
             state: String,
             country: { type: String, default: "India" },
             pincode: {
-                type: String, 
+                type: String,
+                trim: true,
             },
             type: {
                 type: String,

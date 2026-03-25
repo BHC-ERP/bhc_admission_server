@@ -3,6 +3,7 @@ import {
     CheckFailureStatusResponse,
     CheckSuccessStatusResponse,
     directSaveApplication,
+    getAllPayments,
     getPaymentStatus,
     handleCCAvenueCancel,
     handleCCAvenueResponse,
@@ -30,6 +31,9 @@ router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);
 router.get("/payment/failure/:transaction_id", CheckFailureStatusResponse);
 // Payment Check in Audit_log _model
 router.get("/payment/success/:transaction_id", CheckSuccessStatusResponse);
+
+// Admin: Get all payments
+router.get('/payment/all', getAllPayments);
 
 
 export default router;
