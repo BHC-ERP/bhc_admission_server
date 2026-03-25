@@ -526,7 +526,6 @@ export const getAllApplications = async (req: Request, res: Response): Promise<R
 
         const total = await CandidateAdmission.countDocuments();
         const data = await CandidateAdmission.find()
-            .select("registration_number personal_details admission_status appliedProgrammeType createdAt")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
