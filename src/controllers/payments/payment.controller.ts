@@ -1113,18 +1113,46 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
 // Get all payments initiated (Audit Logs with Pagination)
 export const getMissedPaymentsFull = async (req: Request, res: Response) => {
     try {
+        const paymentCollection = mongoose.connection.collection("payment_initiated");
 
-        const payment_initiated = await mongoose.connection.collection("payment_initiated");
-        const data = await payment_initiated.find({
+        const payments = await paymentCollection
+            .find({})
+            .sort({ timestamp: -1 })
+            .toArray();
 
-        })
-            .sort({ timestamp: -1 }) // latest first
-            .toArray(); // ✅ IMPORTANT FIX
+        // Extract all mobiles
+        const mobiles = payments.map((p: any) =>
+            p?.candidateDetails?.personal_details?.contact_info?.mobile
+        ).filter(Boolean);
+
+        // Fetch all matching candidates
+        const candidates = await CandidateAdmission.find({
+            'personal_details.phone': { $in: mobiles }
+        }).lean();
+
+        // Create lookup map (O(1) access)
+        const candidateMap = new Map();
+        candidates.forEach((c: any) => {
+            candidateMap.set(c.personal_details.phone, c);
+        });
+
+        // Attach candidate info per payment
+        const enrichedData = payments.map((p: any) => {
+            const phone = p?.candidateDetails?.personal_details?.contact_info?.mobile;
+            const candidate = candidateMap.get(phone);
+
+            return {
+                ...p,
+                already_registered: !!candidate,
+                candidate_id: candidate?._id || null,
+                candidate_reg_number: candidate?.registration_number || null
+            };
+        });
 
         return res.status(200).json({
             success: true,
-            total: data.length,
-            data
+            total: enrichedData.length,
+            data: enrichedData
         });
 
     } catch (error: any) {
