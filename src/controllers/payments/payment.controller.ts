@@ -184,14 +184,16 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
             origin, // Save origin for the response handler
             timestamp: new Date().toISOString()
         });
-       await mongoose.connection
-  .collection("payment_initiated")
-  .insertOne({
-    candidateDetails,
-    amount,
-    origin,
-    timestamp: new Date().toISOString()
-  });
+
+        await mongoose.connection
+            .collection("payment_initiated")
+            .insertOne({
+                candidateDetails,
+                orderId,
+                amount,
+                origin,
+                timestamp: new Date().toISOString()
+            });
 
         console.log("Pending payment stored in memory for order:", orderId);
 
@@ -340,6 +342,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
                     exemption_reason: 'ZERO_FEE'
                 }
             });
+            
 
             return res.status(200).json({
                 status: 'success',
@@ -360,6 +363,18 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
             timestamp: new Date().toISOString()
         });
 
+        await mongoose.connection
+            .collection("payment_initiated")
+            .insertOne({
+                 candidateId,
+                candidateDetails,
+                 selected_courses,
+                orderId,
+                amount,
+                origin,
+                 isAddMore: true,
+                timestamp: new Date().toISOString()
+            });
         // Set expiration after 1 hour
         setTimeout(() => pendingPayments.delete(orderId), 60 * 60 * 1000);
 
@@ -425,7 +440,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             // At this point we don't know the order_id, so we don't know the origin.
             // Best effort fallback to env.CCAVENUE_FRONTEND_URL
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
-            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`); 
+            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
         }
 
         console.log("Encrypted Response Length:", encResp.length);
@@ -1051,11 +1066,11 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
                 const cId = payment.personal_details?.candidateId;
                 if (cId && candidateMap.has(cId.toString())) {
                     const cData = candidateMap.get(cId.toString());
-                    
+
                     if (!payment.personal_details) payment.personal_details = {};
                     if (!payment.personal_details.basic_info) payment.personal_details.basic_info = {};
                     if (!payment.personal_details.contact_info) payment.personal_details.contact_info = {};
-                    
+
                     payment.personal_details.basic_info.name = cData.personal_details?.fullName || "anonymous";
                     payment.personal_details.contact_info.email = cData.personal_details?.email || "n/a";
                     payment.personal_details.contact_info.mobile = cData.personal_details?.phone || "n/a";
