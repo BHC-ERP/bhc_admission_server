@@ -1,7 +1,7 @@
 import { Request, Response, Router } from "express";
 import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
-import { getApplicationStats } from "../controllers/admin/stats.controller";
+import { getApplicationStats, getPaymentSummary } from "../controllers/admin/stats.controller";
 import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
 
 

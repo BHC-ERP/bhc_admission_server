@@ -1009,6 +1009,39 @@ export const CheckSuccessStatusResponse = async (
 
 
 
+
+// Get all payments (Audit Logs with Pagination)
+export const getAllPayments = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        const total = await payment_log.countDocuments();
+        const payments = await payment_log.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            data: payments
+        });
+    } catch (error: any) {
+        console.error("❌ Error fetching all payments:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
+
 // Helper function to generate CCAvenue encrypted request
 function generateCCAvenueEncRequest(params: any): string {
 

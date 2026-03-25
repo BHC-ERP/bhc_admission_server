@@ -39,6 +39,7 @@ import {
   checkEmisNumber,
   checkUmisNumber,
   getcandidatedata,
+  getAllApplications,
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications,
   BusRouteController,
@@ -88,6 +89,7 @@ router.get("/candidate/:registration_number", getcandidatedata);
 // ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
 router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/verified-list/all/", getAllVerifySelectionApplications);
+router.get("/all", getAllApplications);
 
 
 // ====================GET APPLICATION FORM ROUTES ====================
