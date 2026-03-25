@@ -4,6 +4,7 @@ import {
     CheckSuccessStatusResponse,
     directSaveApplication,
     getAllPayments,
+    getMissedPaymentsFull,
     getPaymentStatus,
     handleCCAvenueCancel,
     handleCCAvenueResponse,
@@ -34,6 +35,6 @@ router.get("/payment/success/:transaction_id", CheckSuccessStatusResponse);
 
 // Admin: Get all payments
 router.get('/payment/all', getAllPayments);
-
+router.get('/payment/missed-list', getMissedPaymentsFull);
 
 export default router;

@@ -342,7 +342,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
                     exemption_reason: 'ZERO_FEE'
                 }
             });
-            
+
 
             return res.status(200).json({
                 status: 'success',
@@ -366,13 +366,13 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         await mongoose.connection
             .collection("payment_initiated")
             .insertOne({
-                 candidateId,
+                candidateId,
                 candidateDetails,
-                 selected_courses,
+                selected_courses,
                 orderId,
                 amount,
                 origin,
-                 isAddMore: true,
+                isAddMore: true,
                 timestamp: new Date().toISOString()
             });
         // Set expiration after 1 hour
@@ -490,6 +490,13 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             failure_message
         } = responseParams;
         order_id = responseParams.order_id; // Get confirmed order_id
+
+
+        if (encResp && order_id) {
+            const payment_miss_init = await mongoose.connection.collection('payment_initiated')
+                .deleteOne({ orderId: order_id });
+            console.log("Payment Missed Init Removed:", payment_miss_init);
+        }
 
         console.log("Order ID:", order_id);
         console.log("Order Status:", order_status);
@@ -719,7 +726,6 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
             return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
         }
-
         console.log("encResp type:", typeof encResp);
 
         let decryptedResponse = '';
@@ -767,6 +773,12 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
 
         if (!pendingData) {
             console.warn("⚠️ No pending payment found for:", order_id);
+        }
+
+        if (encResp && order_id) {
+            const payment_miss_init = await mongoose.connection.collection('payment_initiated')
+                .deleteOne({ orderId: order_id });
+            console.log("Payment Missed Init Removed:", payment_miss_init);
         }
 
         const candidateDetails = pendingData?.candidateDetails;
@@ -1096,6 +1108,35 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
         });
     }
 };
+
+
+// Get all payments initiated (Audit Logs with Pagination)
+export const getMissedPaymentsFull = async (req: Request, res: Response) => {
+    try {
+
+        const payment_initiated = await mongoose.connection.collection("payment_initiated");
+        const data = await payment_initiated.find({
+
+        })
+            .sort({ timestamp: -1 }) // latest first
+            .toArray(); // ✅ IMPORTANT FIX
+
+        return res.status(200).json({
+            success: true,
+            total: data.length,
+            data
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error fetching missed payments:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
+
 
 // Helper function to generate CCAvenue encrypted request
 function generateCCAvenueEncRequest(params: any): string {
