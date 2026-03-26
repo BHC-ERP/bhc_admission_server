@@ -13,13 +13,15 @@ router.get("/dashboard", authMiddleware, (req, res) => {
   });
 });
 
-router.post('/missed_save', authMiddleware, async (req, res) => {
+router.post('/missed_save', async (req, res) => {
   try {
     const {
       candidateDetails,
       amount,
       transaction_id,
       payment_date,
+      bank_ref_no,
+      
     } = req.body;
 
     const mobile = candidateDetails?.personal_details?.contact_info?.mobile;
@@ -65,11 +67,12 @@ router.post('/missed_save', authMiddleware, async (req, res) => {
       },
       selected_courses: candidateDetails.selected_courses,
       payment_details: {
-        payment_method: 'ccavenue',
+        payment_method: 'ccavenue_missed',
         amount_paid: amount,
         status: "success",
         transaction_id,
-        transaction_date: payment_date || new Date()
+        transaction_date: payment_date || new Date(),
+        bank_ref_no,
       }
     };
 
