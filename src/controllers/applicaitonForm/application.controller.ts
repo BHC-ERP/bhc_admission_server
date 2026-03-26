@@ -935,15 +935,15 @@ export const bankDetailsController = async (req: Request, res: Response) => {
         const regId = req.params.regId;
 
         // Validate IFSC code
-        if (bankData.ifsc_code) {
-            const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-            if (!ifscRegex.test(bankData.ifsc_code)) {
-                return res.status(400).json({
-                    message: "Invalid IFSC code format",
-                    field: "ifsc_code"
-                });
-            }
-        }
+        // if (bankData.ifsc_code) {
+        //     const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        //     if (!ifscRegex.test(bankData.ifsc_code)) {
+        //         return res.status(400).json({
+        //             message: "Invalid IFSC code format",
+        //             field: "ifsc_code"
+        //         });
+        //     }
+        // }
 
         // Validate account number
         if (bankData.account_number && bankData.account_number.length < 9) {
