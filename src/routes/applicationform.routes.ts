@@ -44,7 +44,8 @@ import {
   getAllVerifySelectionApplications,
   BusRouteController,
   HostelController,
-  settingsController
+  settingsController,
+  getApplicationsByStatus
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -89,6 +90,7 @@ router.get("/candidate/:registration_number", getcandidatedata);
 // ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
 router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/verified-list/all/", getAllVerifySelectionApplications);
+router.get("/status/:status", getApplicationsByStatus);
 router.get("/all", getAllApplications);
 
 
