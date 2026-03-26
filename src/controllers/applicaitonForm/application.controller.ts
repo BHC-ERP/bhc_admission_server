@@ -228,35 +228,46 @@ export const BusRouteController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
-
 export const getcandidatedata = async (req: Request, res: Response) => {
-    try {
-        const regNumber = req.params.registration_number;
+  try {
+    const regNumber = req.params.registration_number;
+    const data = await CandidateAdmission.findOne({
+      registration_number: Number(regNumber),
+    });
 
-        // Add await to execute the query
-        const data = await CandidateAdmission.findOne({ registration_number: Number(regNumber) });
-
-        if (!data) {
-            return res.status(404).json({
-                success: false,
-                message: "Candidate not found"
-            });
-        }
-
-        return res.json({
-            success: true,
-            data: data
-        });
-
-    } catch (error) {
-        console.error("Error fetching candidate data:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-            error: error instanceof Error ? error.message : "Unknown error"
-        });
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Candidate not found" });
     }
-}
+
+    // Use lean() to get a plain JS object — no Mongoose types at all
+    const plainData = await CandidateAdmission.findOne({
+      registration_number: Number(regNumber),
+    }).lean();
+
+    if (!plainData) {
+      return res.status(404).json({ success: false, message: "Candidate not found" });
+    }
+
+    if (plainData.documents?.required_documents?.length) {
+      await Promise.all(
+        plainData.documents.required_documents.map(async (doc: any) => {
+          doc.view_url = doc.uploaded_url
+            ? await generatePresignedUrl(doc.uploaded_url)
+            : null;
+        })
+      );
+    }
+
+    return res.json({ success: true, data: plainData });
+  } catch (error) {
+    console.error("Error fetching candidate data:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
 
 import hostelModel from "../../models/hostel.model";
 
