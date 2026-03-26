@@ -44,7 +44,8 @@ import {
   getAllVerifySelectionApplications,
   BusRouteController,
   HostelController,
-  settingsController
+  settingsController,
+  getApplicationsByStatus
 } from "../controllers/applicaitonForm/application.controller";
 
 const router = Router();
@@ -52,7 +53,7 @@ const router = Router();
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 1 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       'image/jpeg', 'image/jpg', 'image/png',
@@ -89,6 +90,7 @@ router.get("/candidate/:registration_number", getcandidatedata);
 // ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
 router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/verified-list/all/", getAllVerifySelectionApplications);
+router.get("/status/:status", getApplicationsByStatus);
 router.get("/all", getAllApplications);
 
 

@@ -228,35 +228,46 @@ export const BusRouteController = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
-
 export const getcandidatedata = async (req: Request, res: Response) => {
     try {
         const regNumber = req.params.registration_number;
-
-        // Add await to execute the query
-        const data = await CandidateAdmission.findOne({ registration_number: Number(regNumber) });
-
-        if (!data) {
-            return res.status(404).json({
-                success: false,
-                message: "Candidate not found"
-            });
-        }
-
-        return res.json({
-            success: true,
-            data: data
+        const data = await CandidateAdmission.findOne({
+            registration_number: Number(regNumber),
         });
 
+        if (!data) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        // Use lean() to get a plain JS object — no Mongoose types at all
+        const plainData = await CandidateAdmission.findOne({
+            registration_number: Number(regNumber),
+        }).lean();
+
+        if (!plainData) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        if (plainData.documents?.required_documents?.length) {
+            await Promise.all(
+                plainData.documents.required_documents.map(async (doc: any) => {
+                    doc.view_url = doc.uploaded_url
+                        ? await generatePresignedUrl(doc.uploaded_url)
+                        : null;
+                })
+            );
+        }
+
+        return res.json({ success: true, data: plainData });
     } catch (error) {
         console.error("Error fetching candidate data:", error);
         return res.status(500).json({
             success: false,
             message: "Internal server error",
-            error: error instanceof Error ? error.message : "Unknown error"
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
-}
+};
 
 import hostelModel from "../../models/hostel.model";
 
@@ -549,6 +560,81 @@ export const getAllApplications = async (req: Request, res: Response): Promise<R
 
     } catch (error) {
         console.error("Error fetching all applications:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
+
+// GET /applications/status/:status (Generic status filter)
+export const getApplicationsByStatus = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { status } = req.params;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        if (!status) {
+            return res.status(400).json({ success: false, message: "Status parameter is required" });
+        }
+
+        // Aggregate to find candidates with at least one application matching the status
+        // and filter the applications array in the result
+        const aggregation = [
+            {
+                $match: {
+                    "application_preferences.applications.status": status
+                }
+            },
+            {
+                $project: {
+                    registration_number: 1,
+                    personal_details: 1,
+                    academic_background: 1,
+                    appliedProgrammeType: 1,
+                    admission_status: 1,
+                    applications: {
+                        $filter: {
+                            input: "$application_preferences.applications",
+                            as: "app",
+                            cond: { $eq: ["$$app.status", status] }
+                        }
+                    },
+                    metadata: 1
+                }
+            },
+            { $sort: { createdAt: -1 as const } },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const [data, totalCount] = await Promise.all([
+            CandidateAdmission.aggregate(aggregation),
+            CandidateAdmission.countDocuments({
+                "application_preferences.applications.status": status
+            })
+        ]);
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `No applications found with status: ${status}`
+            });
+        }
+
+        return res.json({
+            success: true,
+            total: totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching applications by status:", error);
         return res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -924,15 +1010,15 @@ export const bankDetailsController = async (req: Request, res: Response) => {
         const regId = req.params.regId;
 
         // Validate IFSC code
-        if (bankData.ifsc_code) {
-            const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-            if (!ifscRegex.test(bankData.ifsc_code)) {
-                return res.status(400).json({
-                    message: "Invalid IFSC code format",
-                    field: "ifsc_code"
-                });
-            }
-        }
+        // if (bankData.ifsc_code) {
+        //     const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        //     if (!ifscRegex.test(bankData.ifsc_code)) {
+        //         return res.status(400).json({
+        //             message: "Invalid IFSC code format",
+        //             field: "ifsc_code"
+        //         });
+        //     }
+        // }
 
         // Validate account number
         if (bankData.account_number && bankData.account_number.length < 9) {
