@@ -9,6 +9,7 @@ import dioceseModel from "../../models/diocese.model";
 import subjectModel from "../../models/subject.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
+import EditLog from "../../models/audit/EditLog.model";
 import mongoose from "mongoose";
 
 // Initialize S3 Client
@@ -70,6 +71,42 @@ const generatePresignedUrl = async (key: string): Promise<string> => {
         Key: key
     });
     return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+};
+
+const getChangedData = (oldObj: any, newObj: any) => {
+    const oldDiff: any = {};
+    const newDiff: any = {};
+    let hasChanges = false;
+
+    for (const key in newObj) {
+        let oldValue = oldObj?.[key];
+        let newValue = newObj[key];
+
+        // Handle case where oldValue or newValue are dates
+        if (oldValue instanceof Date) oldValue = oldValue.toISOString();
+        if (newValue instanceof Date) newValue = newValue.toISOString();
+
+        if (newValue && typeof newValue === 'object' && !Array.isArray(newValue)) {
+            const sub = getChangedData(oldValue || {}, newValue);
+            if (sub.hasChanges) {
+                oldDiff[key] = sub.oldDiff;
+                newDiff[key] = sub.newDiff;
+                hasChanges = true;
+            }
+        } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+            // Handle Case where one is null/undefined and other is empty string (ignoring superficial differences)
+            const oldStr = oldValue === null || oldValue === undefined ? "" : oldValue.toString();
+            const newStr = newValue === null || newValue === undefined ? "" : newValue.toString();
+            
+            if (oldStr !== newStr) {
+                oldDiff[key] = oldValue;
+                newDiff[key] = newValue;
+                hasChanges = true;
+            }
+        }
+    }
+
+    return { oldDiff, newDiff, hasChanges };
 };
 
 // ==================== MASTER DATA CONTROLLERS ====================
@@ -1823,6 +1860,127 @@ export const fromSubmitController = async (req: Request, res: Response) => {
         return res.status(500).json({
             message: "Error submitting application",
             error: error?.message
+        });
+    }
+};
+
+
+// PUT /update_basic_details/:regId
+export const updateCandidateBasicDetails = async (req: Request, res: Response) => {
+    try {
+        const { regId } = req.params;
+        const { personal_details, address, academic_background, parents: parentsData, staffname, staffid } = req.body;
+
+        if (!regId) {
+            return res.status(400).json({ success: false, message: "Registration number is required" });
+        }
+
+        // Fetch candidate to get old data for logging
+        const candidate = await CandidateAdmission.findOne({ registration_number: Number(regId) });
+
+        if (!candidate) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        const candidateObj = candidate.toObject();
+        const oldData = {
+            personal_details: candidateObj.personal_details,
+            address: candidateObj.address,
+            academic_background: candidateObj.academic_background
+        };
+
+        const updateData: any = {};
+        if (personal_details) {
+            updateData.personal_details = {
+                ...candidateObj.personal_details,
+                ...personal_details
+            };
+        }
+        if (address) {
+            updateData.address = {
+                present_address: {
+                    ...candidateObj.address?.present_address,
+                    ...address.present_address
+                },
+                permanent_address: {
+                    ...candidateObj.address?.permanent_address,
+                    ...address.permanent_address
+                }
+            };
+        }
+        if (parentsData) {
+            updateData.parents = {
+                ...candidateObj.parents,
+                ...parentsData,
+                guardian: {
+                    ...candidateObj.parents?.guardian,
+                    ...parentsData.guardian
+                }
+            };
+        }
+        if (academic_background) {
+            updateData.academic_background = {
+                ...candidateObj.academic_background,
+                ...academic_background,
+                school_education: {
+                    ...candidateObj.academic_background?.school_education,
+                    ...academic_background.school_education
+                }
+            };
+        }
+
+        const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+            { registration_number: Number(regId) },
+            { 
+                $set: {
+                    ...updateData,
+                    "metadata.last_modified_by": staffid || (req as any).user?.id || 'admin',
+                    "metadata.ip_address": req.ip || req.socket.remoteAddress,
+                    "metadata.user_agent": req.get("user-agent") || "Unknown"
+                }
+            },
+            { new: true, runValidators: true }
+        );
+
+        // Log the edit
+        const staff_id_val = staffid || (req as any).user?.id || 'admin';
+        const staff_name_val = staffname || (req as any).user?.name || (req as any).user?.fullName || 'Administrator';
+        
+        const { oldDiff, newDiff, hasChanges } = getChangedData(oldData, updateData);
+        
+        if (hasChanges) {
+            await EditLog.create({
+                registration_number: Number(regId),
+                staff_id: staff_id_val,
+                staff_name: staff_name_val,
+                section_edited: "Basic Details",
+                old_data: oldDiff,
+                new_data: newDiff,
+                ip_address: req.ip || req.socket.remoteAddress,
+                user_agent: req.get("user-agent") || "Unknown"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Basic details updated successfully and logged",
+            data: updatedCandidate
+        });
+
+    } catch (error: any) {
+        console.error("Error updating basic details:", error);
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ 
+                success: false, 
+                message: `${field.split('.').pop()} already exists`,
+                field 
+            });
+        }
+        return res.status(500).json({ 
+            success: false, 
+            message: "Internal server error",
+            error: error.message 
         });
     }
 };
