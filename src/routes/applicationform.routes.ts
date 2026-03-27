@@ -32,6 +32,7 @@ import {
   getBankDetailsController,
   getCategoryFacilitiesController,
   fromSubmitController,
+  updateCandidateBasicDetails,
   checkmobile_number,
   checkCommunityNumber,
   checkAadharNumber,
@@ -162,4 +163,5 @@ router.get("/data", getFormDataController);
 
 //============================Submit Applicaiton=============================
 router.post("/submit-applicaitonForm/:registrationNumber", fromSubmitController);
+router.put("/update_basic_details/:regId", updateCandidateBasicDetails);
 export default router;
