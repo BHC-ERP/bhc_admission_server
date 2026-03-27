@@ -73,7 +73,7 @@ export const directSaveApplication = async (req: Request, res: Response): Promis
                 payment_method: "ccavenue",
                 amount_paid: amount || 0,
                 status: "success",
-                transaction_id: `EXEMPTED${Date.now()}${Math.floor(Math.random() * 1000)}`,
+                transaction_id: `EXEMPTED_${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
                 transaction_date: new Date().toISOString(),
                 is_exempted: true,
                 exemption_reason: exemptionReason || 'ZERO_FEE'
@@ -172,7 +172,7 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         console.log("✅ Candidate requires payment");
 
         // Generate unique order ID
-        const orderId = `BHC-ADM-${Date.now()}${Math.floor(Math.random() * 10000)}`;
+        const orderId = `BHC-ADM-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         console.log("Generated Order ID:", orderId);
 
         const origin = req.headers.origin || req.headers.referer || '';
@@ -284,7 +284,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         }
 
         // Generate unique order ID
-        const orderId = `BHC-ADD-${Date.now()}${Math.floor(Math.random() * 10000)}`;
+        const orderId = `BHC-ADD-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
         // Transform candidate into candidateDetails format for audit log / failure page
         const candidateDetails = {
@@ -319,7 +319,7 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         if (amount === 0) {
             console.log("✅ Free Add More Courses detected. Saving directly...");
 
-            const transaction_id = `BHC-EXEMPT-${Date.now()}`;
+            const transaction_id = `BHC-ADD_EXEMPT-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
             const result = await addMoreCandidateCoursesService(candidateId, selected_courses, {
                 amount_paid: 0,
@@ -440,7 +440,7 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
             // At this point we don't know the order_id, so we don't know the origin.
             // Best effort fallback to env.CCAVENUE_FRONTEND_URL
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
-            return res.redirect(`${fallbackUrl}/payment/failure?reason=no_response`);
+            return res.redirect(`${fallbackUrl}/payment/response_not_received`);
         }
 
         console.log("Encrypted Response Length:", encResp.length);
@@ -492,23 +492,29 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
         order_id = responseParams.order_id; // Get confirmed order_id
 
 
-        if (encResp && order_id) {
-            const payment_miss_init = await mongoose.connection.collection('payment_initiated')
-                .deleteOne({ orderId: order_id });
-            console.log("Payment Missed Init Removed:", payment_miss_init);
-        }
-
         console.log("Order ID:", order_id);
         console.log("Order Status:", order_status);
         console.log("Amount:", amount);
         console.log("Tracking ID:", tracking_id);
         console.log("Bank Ref No:", bank_ref_no);
 
-        // Retrieve pending payment
-        const pendingData = pendingPayments.get(order_id);
+        // ✅ ATOMIC LOCK: Find and delete from DB to enforce processing exactly once
+        let dbPendingData = null;
+        if (encResp && order_id) {
+            const result = await mongoose.connection.collection('payment_initiated')
+                .findOneAndDelete({ orderId: order_id });
+            dbPendingData = result?.value || result; // Handle both older and newer MongoDB driver structures
+            console.log("Atomic DB Lock Acquired:", !!dbPendingData);
+        }
+
+        // ✅ LOCAL LOCK: Retrieve and IMMEDIATELY delete from local memory map
+        const memoryPendingData = pendingPayments.get(order_id);
+        pendingPayments.delete(order_id);
+
+        const pendingData = memoryPendingData || dbPendingData;
 
         if (!pendingData) {
-            console.error(`❌ Invalid order or expired order: ${order_id}`);
+            console.error(`❌ Invalid, expired, or already-processed concurrent order: ${order_id}`);
             const fallbackUrl = env.CCAVENUE_FRONTEND_URL;
             return res.redirect(`${fallbackUrl}/payment/failure?reason=invalid_order`);
         }
@@ -545,7 +551,6 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                         }
                     });
 
-                    pendingPayments.delete(order_id);
                     return res.redirect(
                         `${ccConfig.frontendUrl}/payment/success?transaction_id=${tracking_id}&status=success&type=add_more`
                     );
@@ -653,9 +658,6 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                     await sendMailService(email, registration_number.toString(), phone!);
                 }
 
-                pendingPayments.delete(order_id);
-                console.log("Pending Payment Removed:", order_id);
-
                 // ✅ REDIRECT (ONLY ONE RESPONSE)
                 return res.redirect(
                     `${ccConfig.frontendUrl}/payment/success?transaction_id=${tracking_id}&status=success`
@@ -689,8 +691,6 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
                 },
                 step_completed: candidateDetails?.step_completed
             });
-
-            pendingPayments.delete(order_id);
 
             // return res.redirect(
             //     `${env.FRONTEND_URL}/payment/failure?reason=payment_failed&message=${encodeURIComponent(
@@ -766,21 +766,27 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
         console.log("Order ID:", order_id);
         console.log("Order Status:", order_status);
 
-        // ✅ Get pending data
-        const pendingData = pendingPayments.get(order_id);
-        const origin = pendingData?.origin || '';
-        const ccConfig = getCCAvenueConfig({ origin });
+        // ✅ ATOMIC LOCK: Find and delete from DB
+        let dbPendingData = null;
+        if (encResp && order_id) {
+            const result = await mongoose.connection.collection('payment_initiated')
+                .findOneAndDelete({ orderId: order_id });
+            dbPendingData = result?.value || result;
+            console.log("Atomic DB Lock Acquired:", !!dbPendingData);
+        }
+
+        // ✅ LOCAL LOCK: Retrieve and IMMEDIATELY delete from local memory map
+        const memoryPendingData = pendingPayments.get(order_id);
+        pendingPayments.delete(order_id);
+
+        const pendingData = memoryPendingData || dbPendingData;
 
         if (!pendingData) {
             console.warn("⚠️ No pending payment found for:", order_id);
         }
 
-        if (encResp && order_id) {
-            const payment_miss_init = await mongoose.connection.collection('payment_initiated')
-                .deleteOne({ orderId: order_id });
-            console.log("Payment Missed Init Removed:", payment_miss_init);
-        }
-
+        const origin = pendingData?.origin || '';
+        const ccConfig = getCCAvenueConfig({ origin });
         const candidateDetails = pendingData?.candidateDetails;
 
         // ✅ SAVE AUDIT LOG (IMPORTANT)
@@ -804,11 +810,6 @@ export const handleCCAvenueCancel = async (req: Request, res: Response): Promise
         console.log("✅ Cancel payment audit log saved");
 
         // ✅ CLEANUP
-        if (order_id) {
-            pendingPayments.delete(order_id);
-            console.log("Pending Payment Removed:", order_id);
-        }
-
         console.log("Redirecting to Cancel Page");
 
         const isAddingMore = pendingData?.isAddMore;
@@ -887,8 +888,6 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
         });
     }
 };
-
-
 
 //////////////////////////////////////////////////////////////TESTING
 
