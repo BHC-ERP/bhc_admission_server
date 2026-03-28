@@ -735,7 +735,7 @@ export const handleDecryptionData = async (req: Request, res: Response): Promise
         try {
             decryptedResponse = decryptCCAvenueResponse(
                 encResp,
-                env.CCAVENUE_WORKING_KEY
+                env.CCAVENUE_WORKING_KEY_ADMAPI 
             );
 
             const parsed = parseResponse(decryptedResponse);
@@ -745,6 +745,12 @@ export const handleDecryptionData = async (req: Request, res: Response): Promise
             }
 
             console.log("✅ Decrypted using PROD key");
+
+            res.status(200).json({
+                success: true,
+                data: parsed
+            });
+            return;
 
         } catch (prodError) {
             console.warn("⚠️ PROD decryption failed, trying DEV key...");
@@ -767,25 +773,7 @@ export const handleDecryptionData = async (req: Request, res: Response): Promise
             }
         }
 
-        // 🔵 Step 4: Parse Response Safely
-        let responseParams;
-        try {
-            responseParams = parseResponse(decryptedResponse);
-        } catch (parseError) {
-            console.error("❌ Failed to parse decrypted response");
 
-            return res.redirect(
-                `${env.CCAVENUE_FRONTEND_URL}/payment/failure?reason=parse_error`
-            );
-        }
-
-        console.log("🔓 Decrypted Response:", responseParams);
-
-        res.status(200).json({
-            success: true,
-            data: responseParams
-        });
-        return;
     } catch (err) {
         console.error("❌ Unexpected Cancel Handler Error:", err);
 
