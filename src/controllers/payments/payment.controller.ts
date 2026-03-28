@@ -759,7 +759,7 @@ export const handleDecryptionData = async (req: Request, res: Response): Promise
             try {
                 decryptedResponse = decryptCCAvenueResponse(
                     encResp,
-                    env.CCAVENUE_WORKING_KEY_DEV
+                    env.CCAVENUE_WORKING_KEY_ADMAPI
                 );
 
                 console.log("✅ Decrypted using DEV key");
