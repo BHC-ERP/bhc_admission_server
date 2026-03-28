@@ -8,6 +8,7 @@ import {
     getPaymentStatus,
     handleCCAvenueCancel,
     handleCCAvenueResponse,
+    handleDecryptionData,
     initiateAddMoreCoursesPayment,
     initiateCCAvenuePayment,
     testing_failurStatusResponse
@@ -25,6 +26,7 @@ router.post('/payment/add-more-courses/initiate', initiateAddMoreCoursesPayment)
 router.post('/payment/ccavenue/response', handleCCAvenueResponse);
 router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);
 
+router.post('/payment/ccavenue/decrypt/enc', handleDecryptionData);
 // Payment status check(Payment check in CandidateModal)
 // router.get('/payment/status/:transaction_id', getPaymentStatus);
 

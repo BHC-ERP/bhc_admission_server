@@ -712,6 +712,89 @@ export const handleCCAvenueResponse = async (req: Request, res: Response): Promi
     }
 };
 
+export const handleDecryptionData = async (req: Request, res: Response): Promise<void> => {
+    console.log("=========== CCAvenue Decrypt Received ===========");
+
+    try {
+        const { encResp } = req.body;
+
+        // 🔴 Step 1: Validate Input
+        if (!encResp) {
+            console.error("❌ Missing encResp in request body");
+
+            return res.redirect(
+                `${env.CCAVENUE_FRONTEND_URL}/payment/failure?reason=no_response`
+            );
+        }
+
+        console.log("📦 encResp received");
+
+        let decryptedResponse: string | null = null;
+
+        // 🟡 Step 2: Try PROD Key
+        try {
+            decryptedResponse = decryptCCAvenueResponse(
+                encResp,
+                env.CCAVENUE_WORKING_KEY
+            );
+
+            const parsed = parseResponse(decryptedResponse);
+
+            if (!parsed.order_id) {
+                throw new Error("Invalid PROD key response");
+            }
+
+            console.log("✅ Decrypted using PROD key");
+
+        } catch (prodError) {
+            console.warn("⚠️ PROD decryption failed, trying DEV key...");
+
+            // 🟡 Step 3: Try DEV Key
+            try {
+                decryptedResponse = decryptCCAvenueResponse(
+                    encResp,
+                    env.CCAVENUE_WORKING_KEY_DEV
+                );
+
+                console.log("✅ Decrypted using DEV key");
+
+            } catch (devError) {
+                console.error("❌ Both PROD & DEV decryption failed");
+
+                return res.redirect(
+                    `${env.CCAVENUE_FRONTEND_URL}/payment/failure?reason=decryption_failed`
+                );
+            }
+        }
+
+        // 🔵 Step 4: Parse Response Safely
+        let responseParams;
+        try {
+            responseParams = parseResponse(decryptedResponse);
+        } catch (parseError) {
+            console.error("❌ Failed to parse decrypted response");
+
+            return res.redirect(
+                `${env.CCAVENUE_FRONTEND_URL}/payment/failure?reason=parse_error`
+            );
+        }
+
+        console.log("🔓 Decrypted Response:", responseParams);
+
+        res.status(200).json({
+            success: true,
+            data: responseParams
+        });
+        return;
+    } catch (err) {
+        console.error("❌ Unexpected Cancel Handler Error:", err);
+
+        return res.redirect(
+            `${env.CCAVENUE_FRONTEND_URL}/payment/failure?reason=server_error`
+        );
+    }
+};
+
 // Handle CCAvenue cancellation
 export const handleCCAvenueCancel = async (req: Request, res: Response): Promise<void> => {
     try {
