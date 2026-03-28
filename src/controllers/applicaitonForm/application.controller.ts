@@ -1886,7 +1886,8 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
         const oldData = {
             personal_details: candidateObj.personal_details,
             address: candidateObj.address,
-            academic_background: candidateObj.academic_background
+            academic_background: candidateObj.academic_background,
+            parents: candidateObj.parents
         };
 
         const updateData: any = {};
