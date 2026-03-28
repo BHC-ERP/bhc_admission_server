@@ -251,6 +251,11 @@ export const initiateCCAvenuePayment = async (req: Request, res: Response): Prom
         console.log(`✅ Payment initiated successfully: OrderID=${orderId}, Amount=${amount}`);
         console.log("=== CCAvenue Payment Initiation Completed ===");
 
+        await mongoose.connection.collection("payment_response").insertOne({
+            orderId,
+            responsePayload,
+            timestamp: new Date().toISOString()
+        });
         return res.status(200).json(responsePayload);
 
     } catch (err) {

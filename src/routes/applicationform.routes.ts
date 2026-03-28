@@ -48,6 +48,7 @@ import {
   settingsController,
   getApplicationsByStatus
 } from "../controllers/applicaitonForm/application.controller";
+import { getActiveNotifications } from "../controllers/admin/notification.controller";
 
 const router = Router();
 
@@ -82,8 +83,9 @@ router.get("/subjects_list", subjectListController);
 router.get("/bus_routes", BusRouteController);
 router.get("/hostel_list", HostelController);
 
-// ==================== SETTINGS ====================
+// = :::::::::::::::::::::::::::::::::: SETTINGS :::::::::::::::::::::::::::::::::: //
 router.get("/settings", settingsController);
+router.get("/active-notifications", getActiveNotifications);
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);
