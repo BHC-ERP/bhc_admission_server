@@ -136,6 +136,7 @@ const CandidateSchema = new mongoose.Schema({
             pincode: {
                 type: String,
                 trim: true,
+                set: (v: string) => v ? v.replace(/\s+/g, '') : v
             },
             type: {
                 type: String,
@@ -156,7 +157,9 @@ const CandidateSchema = new mongoose.Schema({
             country: { type: String, default: "India" },
             pincode: {
                 type: String,
-                match: [/^\d{6}$/, "Invalid pincode"]
+                trim: true,
+                match: [/^\d{6}$/, "Invalid pincode"],
+                set: (v: string) => v ? v.replace(/\s+/g, '') : v
             },
             type: {
                 type: String,
@@ -191,7 +194,11 @@ const CandidateSchema = new mongoose.Schema({
                     country: { type: String, default: 'India' },
                     state: String,
                     district: String,
-                    pincode: String
+                    pincode: {
+                        type: String,
+                        trim: true,
+                        set: (v: string) => v ? v.replace(/\s+/g, '') : v
+                    }
                 },
                 year_of_passing: {
                     type: Number,
@@ -225,7 +232,11 @@ const CandidateSchema = new mongoose.Schema({
                     country: { type: String, default: 'India' },
                     state: String,
                     district: String,
-                    pincode: String
+                    pincode: {
+                        type: String,
+                        trim: true,
+                        set: (v: string) => v ? v.replace(/\s+/g, '') : v
+                    }
                 },
                 year_of_passing: {
                     type: Number,
