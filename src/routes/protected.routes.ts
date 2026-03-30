@@ -20,6 +20,7 @@ router.post('/missed_save', async (req, res) => {
   let mobile: string | undefined;
   let transactionId: string | undefined;
   let staffid: string | undefined;
+  let orderId: string | undefined;
   try {
     const {
       candidateDetails,
@@ -27,12 +28,14 @@ router.post('/missed_save', async (req, res) => {
       transaction_id,
       payment_date,
       bank_ref_no,
-      staff_id
+      staff_id,
+      order_id
     } = req.body;
 
     mobile = candidateDetails?.personal_details?.contact_info?.mobile;
     transactionId = transaction_id;
     staffid = staff_id;
+    orderId = order_id;
 
     if (!mobile) {
       return res.status(400).json({ message: "Mobile number required" });
@@ -112,7 +115,7 @@ router.post('/missed_save', async (req, res) => {
     res.status(500).json({ message: "Error handling missed payment" });
   } finally {
     // Check if the user ultimately exists (either already existed or was just created)
-    if (mobile && transactionId) {
+    if (mobile && transactionId && orderId) {
       let existing = await CandidateAdmission.findOne({
         "personal_details.phone": mobile
       });
@@ -126,7 +129,7 @@ router.post('/missed_save', async (req, res) => {
             staff_id: staffid,
             moved_at: new Date()
           });
-          await mongoose.connection.collection('payment_audit_logs').deleteOne({ _id: auditLog._id });
+          await mongoose.connection.collection('payment_initiated').deleteOne({ order_id: orderId });
         }
       }
     }
