@@ -517,7 +517,7 @@ export const candidateSignup = async (
         const candidate_name = candidate.personal_details?.fullName || 'Candidate';
         const phone = candidate.personal_details?.phone;
 
-        // Send SMS (non-blocking)
+        //Send SMS (non-blocking)
         if (phone) {
             const message = `Dear ${candidate_name}, Your Registration No. is:${registration_number} and the Password is:${phone} - Bishop Heber College`;
             console.log("14. Sending SMS to:", phone);

@@ -1195,15 +1195,24 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             .sort({ timestamp: -1 })
             .toArray();
 
-        // Extract all mobiles
+        const Transaction = mongoose.model('Transaction');
+
+        // Extract all mobiles and orderIds
         const mobiles = payments.map((p: any) =>
             p?.candidateDetails?.personal_details?.contact_info?.mobile
         ).filter(Boolean);
+
+        const orderIds = payments.map((p: any) => p.orderId).filter(Boolean);
 
         // Fetch all matching candidates
         const candidates = await CandidateAdmission.find({
             'personal_details.phone': { $in: mobiles }
         }).lean();
+
+        // Fetch matching Shipped transactions (to flag them in the UI)
+        const transactions = await Transaction.find({
+            orderNo: { $in: orderIds } // We fetch all matching from Excel to show actual status
+        }).lean() as any[];
 
         // Create lookup map (O(1) access)
         const candidateMap = new Map();
@@ -1211,18 +1220,70 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             candidateMap.set(c.personal_details.phone, c);
         });
 
-        // Attach candidate info per payment
-        const enrichedData = payments.map((p: any) => {
-            const phone = p?.candidateDetails?.personal_details?.contact_info?.mobile;
-            const candidate = candidateMap.get(phone);
+        const transactionMap = new Map();
+        transactions.forEach((t: any) => {
+            if (!transactionMap.has(t.orderNo)) {
+                transactionMap.set(t.orderNo, []);
+            }
+            transactionMap.get(t.orderNo).push(t);
+        });
 
-            return {
+        // Group enriched data by candidate (phone) for deduplication
+        const candidateGroups = new Map<string, any>();
+
+        for (const p of payments) {
+            const phone = p?.candidateDetails?.personal_details?.contact_info?.mobile;
+            if (!phone) continue;
+
+            const candidate = candidateMap.get(phone);
+            const matchedTransactions = transactionMap.get(p.orderId) || [];
+            let transaction = null;
+
+            if (matchedTransactions.length > 0) {
+                // Priority logic for multiple transaction records for ONE orderId
+                transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped' && t.billTel === phone);
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped');
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.billTel === phone);
+                if (!transaction) transaction = matchedTransactions[0];
+            }
+
+            const is_shipped = transaction ? (transaction.orderStatus === 'Shipped') : false;
+
+            const enrichedItem: any = {
                 ...p,
                 already_registered: !!candidate,
                 candidate_id: candidate?._id || null,
-                candidate_reg_number: candidate?.registration_number || null
+                candidate_reg_number: candidate?.registration_number || null,
+                amount: transaction ? transaction.orderAmount : p.amount,
+                transaction_id: transaction ? transaction.orderNo : p.orderId,
+                payment_date: transaction ? transaction.orderDatetime : p.timestamp,
+                timestamp: p.timestamp, // Keep for sorting/deduplication
+                bank_ref_no: transaction ? transaction.orderBankRefNo : 'N/A',
+                is_shipped_in_excel: is_shipped,
+                actual_transaction_status: transaction ? transaction.orderStatus : 'Not Found in Excel'
             };
-        });
+
+            // DEDUPLICATION: Group by phone number
+            const existingInGroup = candidateGroups.get(phone);
+            if (!existingInGroup) {
+                candidateGroups.set(phone, enrichedItem);
+            } else {
+                // Priority logic: Replace current item with THIS item IF:
+                // 1. Current NOT shipped, but THIS one is
+                // 2. Both NOT shipped, but THIS one is newer
+                const existingShipped = existingInGroup.is_shipped_in_excel;
+                if (!existingShipped && is_shipped) {
+                    candidateGroups.set(phone, enrichedItem);
+                } else if (!existingShipped && !is_shipped) {
+                    // Both unsuccessful, keep the latest one
+                    if (new Date(enrichedItem.timestamp) > new Date(existingInGroup.timestamp)) {
+                        candidateGroups.set(phone, enrichedItem);
+                    }
+                }
+            }
+        }
+
+        const enrichedData = Array.from(candidateGroups.values());
 
         return res.status(200).json({
             success: true,
