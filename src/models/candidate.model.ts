@@ -126,13 +126,17 @@ const CandidateSchema = new mongoose.Schema({
         present_address: {
             door_no: String,
             street: String,
+            area: String,
+            landmark: String,
             village_town: String,
+            taluk: String,
             district: String,
             state: String,
             country: { type: String, default: "India" },
             pincode: {
                 type: String,
-                match: [/^\d{6}$/, "Invalid pincode"]
+                trim: true,
+                set: (v: string) => v ? v.replace(/\s+/g, '') : v
             },
             type: {
                 type: String,
@@ -144,13 +148,18 @@ const CandidateSchema = new mongoose.Schema({
             same_as_present: Boolean,
             door_no: String,
             street: String,
+            area: String,
+            landmark: String,
             village_town: String,
+            taluk: String,
             district: String,
             state: String,
             country: { type: String, default: "India" },
             pincode: {
                 type: String,
-                match: [/^\d{6}$/, "Invalid pincode"]
+                trim: true,
+                match: [/^\d{6}$/, "Invalid pincode"],
+                set: (v: string) => v ? v.replace(/\s+/g, '') : v
             },
             type: {
                 type: String,
@@ -185,7 +194,11 @@ const CandidateSchema = new mongoose.Schema({
                     country: { type: String, default: 'India' },
                     state: String,
                     district: String,
-                    pincode: String
+                    pincode: {
+                        type: String,
+                        trim: true,
+                        set: (v: string) => v ? v.replace(/\s+/g, '') : v
+                    }
                 },
                 year_of_passing: {
                     type: Number,
@@ -219,7 +232,11 @@ const CandidateSchema = new mongoose.Schema({
                     country: { type: String, default: 'India' },
                     state: String,
                     district: String,
-                    pincode: String
+                    pincode: {
+                        type: String,
+                        trim: true,
+                        set: (v: string) => v ? v.replace(/\s+/g, '') : v
+                    }
                 },
                 year_of_passing: {
                     type: Number,
@@ -275,12 +292,22 @@ const CandidateSchema = new mongoose.Schema({
                     ]
                 }
             },
+            part_wise_marks: {
+                part1: { total_cgpa: Number, acquired_cgpa: Number },
+                part2: { total_cgpa: Number, acquired_cgpa: Number },
+                part3: { total_cgpa: Number, acquired_cgpa: Number },
+                part4: { total_cgpa: Number, acquired_cgpa: Number },
+                part5: { total_cgpa: Number, acquired_cgpa: Number },
+            },
             arrears: {
                 had_arrears: { type: Boolean, default: false },
                 cleared: { type: Boolean, default: false },
                 count: { type: Number, min: 0, default: 0 }
             },
             attempts: { type: Number, default: 1 },
+            waiting_for_result: { type: Boolean, default: false },
+            is_completed: { type: Boolean, default: false },
+            batch: String,
             _id: false
         }],
         entrance_exams: [{
@@ -317,6 +344,7 @@ const CandidateSchema = new mongoose.Schema({
         mother_mobile: String,
         mother_occupation: String,
         mother_income: String,
+        mother_tongue: String,
         guardian: {
             is_guardian: { type: Boolean, default: false },
             guardian_name: String,
@@ -339,6 +367,7 @@ const CandidateSchema = new mongoose.Schema({
 
     /* ==================== CATEGORY AND FACILITIES ==================== */
     category_and_facilities: {
+        is_completed: { type: Boolean, default: false },
         facilities: {
             hostel: {
                 required: { type: Boolean, default: false }
@@ -421,6 +450,7 @@ const CandidateSchema = new mongoose.Schema({
                 },
                 admission_date: Date
             },
+            transaction_id: String,
             _id: false
         }]
     },

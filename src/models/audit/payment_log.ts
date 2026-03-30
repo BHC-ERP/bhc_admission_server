@@ -31,6 +31,7 @@ export interface IPersonalDetails {
     basic_info: IBasicInfo;
     contact_info: IContactInfo;
     application_info: IApplicationInfo;
+    address?: any;
 }
 
 export interface ICourse {
@@ -118,6 +119,7 @@ export interface PaymentAuditLog extends Document {
     personal_details: IPersonalDetails;
     selected_courses: ISelectedCourse[];
     payment_details: IPaymentDetails;
+    step_completed?: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -185,8 +187,9 @@ const PaymentDetailsSchema = new Schema<IPaymentDetails>({
 const PersonalDetailsSchema = new Schema<IPersonalDetails>({
     basic_info: BasicInfoSchema,
     contact_info: ContactInfoSchema,
-    application_info: ApplicationInfoSchema
-});
+    application_info: ApplicationInfoSchema,
+    address: { type: Schema.Types.Mixed }
+}, { strict: false });
 
 /* =========================
    MAIN SCHEMA
@@ -196,9 +199,10 @@ const Payment_audit_log = new Schema<PaymentAuditLog>(
     {
         personal_details: PersonalDetailsSchema,
         selected_courses: [SelectedCourseSchema],
-        payment_details: PaymentDetailsSchema
+        payment_details: PaymentDetailsSchema,
+        step_completed: { type: Number }
     },
-    { timestamps: true }
+    { timestamps: true, strict: false }
 );
 
 export default mongoose.model<PaymentAuditLog>("Payment_audit_log", Payment_audit_log);

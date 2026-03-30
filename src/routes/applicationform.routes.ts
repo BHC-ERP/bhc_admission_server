@@ -32,22 +32,30 @@ import {
   getBankDetailsController,
   getCategoryFacilitiesController,
   fromSubmitController,
+  updateCandidateBasicDetails,
   checkmobile_number,
   checkCommunityNumber,
+  checkAadharNumber,
+  checkPassportNumber,
+  checkEmisNumber,
+  checkUmisNumber,
   getcandidatedata,
+  getAllApplications,
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications,
   BusRouteController,
   HostelController,
-  settingsController
+  settingsController,
+  getApplicationsByStatus
 } from "../controllers/applicaitonForm/application.controller";
+import { getActiveNotifications } from "../controllers/admin/notification.controller";
 
 const router = Router();
 
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 1 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       'image/jpeg', 'image/jpg', 'image/png',
@@ -75,8 +83,9 @@ router.get("/subjects_list", subjectListController);
 router.get("/bus_routes", BusRouteController);
 router.get("/hostel_list", HostelController);
 
-// ==================== SETTINGS ====================
+// = :::::::::::::::::::::::::::::::::: SETTINGS :::::::::::::::::::::::::::::::::: //
 router.get("/settings", settingsController);
+router.get("/active-notifications", getActiveNotifications);
 
 router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);
@@ -84,6 +93,8 @@ router.get("/candidate/:registration_number", getcandidatedata);
 // ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
 router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/verified-list/all/", getAllVerifySelectionApplications);
+router.get("/status/:status", getApplicationsByStatus);
+router.get("/all", getAllApplications);
 
 
 // ====================GET APPLICATION FORM ROUTES ====================
@@ -91,7 +102,7 @@ router.get("/personal_details/:regId", getPersonalDataController);
 router.get("/parents_details/:regId", getParentsDetailsController);
 router.get("/address/:regId", getAddressController);
 router.get("/academic_background/:regId", getAcademicBackgroundController);
-router.get("/higher_education/:regId", getBankDetailsController);
+router.get("/bank_details/:regId", getBankDetailsController);
 router.get("/category_facilities/:regId", getCategoryFacilitiesController);
 
 // ==================== APPLICATION FORM ROUTES ====================
@@ -101,8 +112,14 @@ router.post("/academic_background/:regId", academicBackgroundController);
 router.post("/parents_details/:regId", parentsDetailsController);
 router.post("/bank_details/:regId", bankDetailsController);
 router.post("/category_facilities/:regId", categoryFacilitiesController);
+
+// ====================CHECK DUPLICATE DATAS ====================
 router.get("/check_mobile/:mobile", checkmobile_number);
 router.get("/check_communityNumber/:communityNumber", checkCommunityNumber);
+router.get("/check_aadharNumber/:aadharNumber", checkAadharNumber);
+router.get("/check_passportNumber/:passportNumber", checkPassportNumber);
+router.get("/check_emisNumber/:emisNumber", checkEmisNumber);
+router.get("/check_umisNumber/:umisNumber", checkUmisNumber);
 
 // ==================== DOCUMENT UPLOAD ROUTES ====================
 router.post(
@@ -148,4 +165,5 @@ router.get("/data", getFormDataController);
 
 //============================Submit Applicaiton=============================
 router.post("/submit-applicaitonForm/:registrationNumber", fromSubmitController);
+router.put("/update_basic_details/:regId", updateCandidateBasicDetails);
 export default router;

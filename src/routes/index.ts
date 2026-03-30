@@ -8,11 +8,12 @@ import application_form from "./applicationform.routes";
 import visitorRoutes from "./visitor.routes";
 import adminRoutes from "./admin.routes";
 import paymentRoutes from './payment.routes'
+import visitRoutes from "./visitor.routes";
 
 const router = Router();
 
 router.get("/health", healthCheck);
-
+router.use("/visits", visitRoutes);
 router.use("/auth", authRoutes);
 router.use("/secure", paymentRoutes)
 router.use("/application_form", application_form);

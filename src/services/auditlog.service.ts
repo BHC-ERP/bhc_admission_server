@@ -4,12 +4,14 @@ export const createPaymentAuditLog = async (data: {
     personal_details: any;
     selected_courses: any[];
     payment_details: any;
+    step_completed?: number;
 }) => {
     try {
         const log = await payment_log.create({
             personal_details: data.personal_details,
             selected_courses: data.selected_courses,
-            payment_details: data.payment_details
+            payment_details: data.payment_details,
+            step_completed: data.step_completed
         });
 
         console.log("📝 Payment Audit Log Saved:", log._id);

@@ -6,6 +6,8 @@ import programsModel from "../../models/programs.model";
 import CandidateAdmission from "../../models/candidate.model";
 import { createCandidateWithRetry, getNextRegistrationNumber } from "../../utils/getNextRegistrationNumber";
 import { ApplicationCounter, getNextApplicationNumbers } from "../../models/auth/ApplicationCounter.model";
+import { sendSMSService } from "../../services/sms.service";
+import { sendMailService } from "../../services/mail.service";
 
 
 // Types and Interfaces
@@ -160,10 +162,6 @@ interface ValidationError extends Error {
 
 const freeCommunities = ["SC", "ST", "SCA"];
 
-
-
-
-
 // Candidate Signup
 export const candidateSignup = async (
     req: Request<{}, {}, SignupRequest>,
@@ -171,6 +169,16 @@ export const candidateSignup = async (
 ): Promise<Response> => {
     try {
         const { personal_details, selected_courses, payment_details } = req.body;
+
+        // DEBUG: Log incoming request
+        console.log("========== CANDIDATE SIGNUP DEBUG ==========");
+        console.log("1. Received payload:", JSON.stringify({
+            email: personal_details?.contact_info?.email,
+            mobile: personal_details?.contact_info?.mobile,
+            community: personal_details?.basic_info?.community,
+            application_count: personal_details?.application_info?.application_count,
+            program_codes: personal_details?.application_info?.program_code
+        }, null, 2));
 
         if (!personal_details) {
             return res.status(400).json({
@@ -195,16 +203,16 @@ export const candidateSignup = async (
             });
         }
 
-        // const mobileRegex = /^[6-9]\d{9}$/;
-        // if (!mobileRegex.test(mobile)) {
-        //     return res.status(400).json({
-        //         message: "Invalid mobile number format"
-        //     });
-        // }
-
         // Community validation
         const community = personal_details?.basic_info?.community;
         const communityNumber = personal_details?.basic_info?.community_number;
+
+        // DEBUG: Community check
+        console.log("2. Community validation:", {
+            community,
+            communityNumber,
+            isFreeCommunity: freeCommunities.includes(community)
+        });
 
         if (freeCommunities.includes(community) && !communityNumber) {
             return res.status(400).json({
@@ -213,15 +221,25 @@ export const candidateSignup = async (
         }
 
         // Duplicate check
+        // DEBUG: Check both mobile and email for duplicates
+        console.log("3. Checking duplicates for:", { mobile, email });
+
         const existing = await CandidateAdmission.findOne({
-            "personal_details.phone": mobile
+            $or: [
+                { "personal_details.phone": mobile },
+            ]
         });
 
         if (existing) {
+            console.log("3a. Duplicate found:", {
+                existing_phone: existing.personal_details?.phone,
+                registration_number: existing.registration_number
+            });
             return res.status(409).json({
-                message: "Candidate already registered with this mobile number"
+                message: "Candidate already registered with this mobile number or email"
             });
         }
+        console.log("3b. No duplicates found");
 
         // Validate application info
         const applicationInfo = personal_details.application_info;
@@ -232,6 +250,15 @@ export const candidateSignup = async (
         }
 
         const { program_code, application_type, application_count, program_names, program_streams } = applicationInfo;
+
+        // DEBUG: Application info
+        console.log("4. Application info:", {
+            application_type,
+            application_count,
+            program_code_count: program_code?.length,
+            program_names_count: program_names?.length,
+            program_streams_count: program_streams?.length
+        });
 
         if (!program_code || !Array.isArray(program_code) || program_code.length === 0) {
             return res.status(400).json({
@@ -265,7 +292,8 @@ export const candidateSignup = async (
             });
         }
 
-        // Validate programs exist in database (optional - you can skip if you trust the frontend)
+        // Validate programs exist in database
+        console.log("5. Validating programs in database...");
         const programs = await programsModel.find({
             program_code: { $in: program_code }
         }).lean();
@@ -277,16 +305,19 @@ export const candidateSignup = async (
             }
         });
 
-        // Check if any program codes are invalid (optional)
+        // Check if any program codes are invalid
         const invalidPrograms = program_code.filter((code: string) => !programMap[code]);
         if (invalidPrograms.length > 0) {
-            console.warn(`Warning: Program codes not found in database: ${invalidPrograms.join(", ")}`);
-            // Continue anyway since we have program_names from frontend
+            console.warn(`5a. Warning: Program codes not found in database: ${invalidPrograms.join(", ")}`);
+        } else {
+            console.log("5b. All programs validated successfully");
         }
 
         // Create applications with all the data
+        console.log("6. Generating application numbers...");
         const applications: Application[] = [];
         const numbers = await getNextApplicationNumbers(program_code.length);
+        console.log("6a. Application numbers generated:", numbers);
 
         for (let i = 0; i < program_code.length; i++) {
             applications.push({
@@ -304,6 +335,10 @@ export const candidateSignup = async (
         let total_amount = 0;
         if (selected_courses && selected_courses.length > 0) {
             total_amount = selected_courses.reduce((sum, item) => sum + (item.course.application_fee || 0), 0);
+            console.log("7. Payment calculated from selected_courses:", {
+                selected_courses_count: selected_courses.length,
+                total_amount
+            });
         } else {
             // Fallback calculation
             const isFreeCommunity = freeCommunities.includes(community);
@@ -315,10 +350,18 @@ export const candidateSignup = async (
                         ? 160
                         : 0;
             total_amount = perApplicationAmount * application_count;
+            console.log("7. Payment calculated from fallback:", {
+                isFreeCommunity,
+                perApplicationAmount,
+                application_count,
+                total_amount
+            });
         }
 
         const payment_status = total_amount === 0 ? "exempted" :
             (payment_details?.status === "success" ? "success" : (payment_details?.status === "exempted" ? "exempted" : "pending"));
+
+        console.log("8. Payment status determined:", { total_amount, payment_status });
 
         // Validate date of birth
         const dateOfBirth = new Date(personal_details.basic_info.date_of_birth);
@@ -333,6 +376,12 @@ export const candidateSignup = async (
         const dayDiff = new Date().getDate() - dateOfBirth.getDate();
         const exactAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
+        console.log("9. Age validation:", {
+            dateOfBirth: personal_details.basic_info.date_of_birth,
+            calculated_age: exactAge,
+            meets_criteria: exactAge >= 15 && exactAge <= 100
+        });
+
         if (exactAge < 15 || exactAge > 100) {
             return res.status(400).json({
                 message: "Age must be between 15 and 100 years"
@@ -340,6 +389,7 @@ export const candidateSignup = async (
         }
 
         const registration_number = await getNextRegistrationNumber();
+        console.log("10. Registration number generated:", registration_number);
 
         // Create candidate data with all required fields
         const bi = personal_details.basic_info || {} as any;
@@ -349,9 +399,10 @@ export const candidateSignup = async (
         const pad = ad.present_address || {};
         const pmd = ad.permanent_address || {};
 
+
         const candidateData = {
             registration_number,
-             appliedProgrammeType: application_type,
+            appliedProgrammeType: application_type,
             personal_details: {
                 fullName: bi.name,
                 dateOfBirth: dateOfBirth,
@@ -359,7 +410,7 @@ export const candidateSignup = async (
                 email: ci.email,
                 phone: ci.mobile,
                 community: bi.community == "Others" ? bi.other_community : bi.community,
-                community_number: bi.community_number || undefined, // Use undefined for sparse index
+                community_number: bi.community_number || undefined,
                 nationality: bi.is_nri ? "Outside Indian" : "Indian",
                 aadharNumber: bi.aadhar_number,
                 bloodGroup: bi.blood_group as any,
@@ -438,7 +489,9 @@ export const candidateSignup = async (
             }
         };
 
+        console.log("12. Attempting to create candidate in database...");
         const candidate = await createCandidateWithRetry(candidateData);
+        console.log("12a. Candidate created successfully with ID:", candidate._id);
 
         const candidateId = candidate._id.toString();
 
@@ -456,12 +509,40 @@ export const candidateSignup = async (
                 registration_number,
                 role: "candidate"
             };
+            console.log("13. Session set for candidate");
+        }
+
+        // REMOVED THE PROBLEMATIC QUERY HERE
+
+        const candidate_name = candidate.personal_details?.fullName || 'Candidate';
+        const phone = candidate.personal_details?.phone;
+
+        // Send SMS (non-blocking)
+        if (phone) {
+            const message = `Dear ${candidate_name}, Your Registration No. is:${registration_number} and the Password is:${phone} - Bishop Heber College`;
+            console.log("14. Sending SMS to:", phone);
+            // Don't await to avoid blocking
+            sendSMSService(phone, message).catch(err => {
+                console.error("SMS sending failed:", err);
+            });
+        }
+
+        // Send Email
+        if (email) {
+            console.log("15. Sending email to:", email);
+            // Don't await to avoid blocking
+            sendMailService(email, registration_number.toString(), phone!).catch(err => {
+                console.error("Email sending failed:", err);
+            });
         }
 
         // Generate callback URL
         const callback_url = payment_status === "success"
             ? `/application-success?registration_number=${registration_number}`
             : `/payment?registration_number=${registration_number}&amount=${total_amount}`;
+
+        console.log("16. Signup completed successfully for:", { registration_number, email, phone });
+        console.log("========== END DEBUG ==========");
 
         return res.status(201).json({
             message: "Registration successful",
@@ -482,12 +563,20 @@ export const candidateSignup = async (
         });
 
     } catch (err: unknown) {
-        console.error("Signup error:", err);
+        console.error("========== SIGNUP ERROR DEBUG ==========");
+        console.error("Error details:", err);
+
+        if (err instanceof Error) {
+            console.error("Error name:", err.name);
+            console.error("Error message:", err.message);
+            console.error("Error stack:", err.stack);
+        }
 
         const mongoError = err as MongoError;
         if (mongoError.code === 11000) {
             const field = mongoError.keyPattern ? Object.keys(mongoError.keyPattern)[0] : "unknown";
             const value = mongoError.keyValue ? Object.values(mongoError.keyValue)[0] : "unknown";
+            console.error("Duplicate key error:", { field, value });
             return res.status(409).json({
                 message: `Duplicate value for ${field}: ${value}. Please use different value.`
             });
@@ -496,6 +585,7 @@ export const candidateSignup = async (
         const validationError = err as ValidationError;
         if (validationError.name === "ValidationError") {
             const errors = Object.values(validationError.errors).map((e: { message: string }) => e.message);
+            console.error("Validation errors:", errors);
             return res.status(400).json({
                 message: "Validation failed",
                 errors
@@ -509,7 +599,6 @@ export const candidateSignup = async (
         });
     }
 };
-
 
 //find registration number using mobile number
 export const findRegistrationNumber = async (
@@ -692,7 +781,7 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             simulateType = "exempted";
         }
 
-        if (simulateType === "success" || simulateType === "exempted") {
+        if (simulateType === "exempted") {
             const transformedBody = {
                 personal_details: {
                     basic_info: basicInfo,
@@ -712,10 +801,10 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
                 selected_courses: candidateDetails.selected_courses,
                 payment_details: {
                     ...(candidateDetails.payment_details || {}),
-                    payment_method: "ccavenue",
+                    payment_method: "Free Applications",
                     amount_paid: amount,
-                    status: simulateType === "exempted" ? "exempted" : "success",
-                    transaction_id: candidateDetails.payment_details?.transaction_id || (simulateType === "exempted" ? `EXEMPT${Date.now()}` : `TXN${Date.now()}`),
+                    status: simulateType,
+                    transaction_id: candidateDetails.payment_details?.transaction_id || (simulateType === "exempted" ? `BHC-EXEMPT-${Date.now()}` : `TXN${Date.now()}`),
                     transaction_date: candidateDetails.payment_details?.transaction_date || new Date().toISOString()
                 }
             };
@@ -726,6 +815,9 @@ export const paymentSimulation = async (req: Request, res: Response): Promise<Re
             } as Request<{}, {}, SignupRequest>;
 
             return await candidateSignup(signupReq, res);
+
+
+
 
         } else if (simulateType === "failure") {
             return res.status(400).json({ message: "Payment failed", status: "failed" });
