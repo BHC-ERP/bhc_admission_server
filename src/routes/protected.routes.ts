@@ -208,9 +208,9 @@ router.post('/missed_Add_more_courses', async (req, res) => {
 
   } catch (err: any) {
     console.error("Missed Add More Courses error:", err);
-    res.status(500).json({ 
-      message: "Error handling missed add more courses", 
-      error: err.message 
+    res.status(500).json({
+      message: "Error handling missed add more courses",
+      error: err.message
     });
   } finally {
     if (mobile && transactionId) {
@@ -237,15 +237,15 @@ router.post('/missed_Add_more_courses', async (req, res) => {
 // Move to unsuccessful_payment collection
 router.post('/unsuccessful_payment', async (req, res) => {
   try {
-    const { transaction_id, reason, staff_id } = req.body;
-    if (!transaction_id) {
-      return res.status(400).json({ message: "transaction_id is required" });
+    const { order_id, reason, staff_id } = req.body;
+    if (!order_id) {
+      return res.status(400).json({ message: "order_id is required" });
     }
 
-    const auditLog = await mongoose.connection.collection('payment_audit_logs').findOne({ transaction_id });
-    
+    const auditLog = await mongoose.connection.collection('payment_initiated').findOne({ orderId: order_id });
+
     if (!auditLog) {
-      return res.status(404).json({ message: "Transaction not found in payment audit logs" });
+      return res.status(404).json({ message: "Transaction not found in payment initiated logs" });
     }
 
     await mongoose.connection.collection('unsuccessful_payment').insertOne({
@@ -256,7 +256,7 @@ router.post('/unsuccessful_payment', async (req, res) => {
       moved_at: new Date()
     });
 
-    await mongoose.connection.collection('payment_audit_logs').deleteOne({ _id: auditLog._id });
+    await mongoose.connection.collection('payment_initiated').deleteOne({ _id: auditLog._id });
 
     return res.status(200).json({
       status: "success",
@@ -271,27 +271,29 @@ router.post('/unsuccessful_payment', async (req, res) => {
 // Move to refund collection
 router.post('/refund_payment', async (req, res) => {
   try {
-    const { transaction_id, reason, refund_amount, staff_id } = req.body;
-    if (!transaction_id) {
-      return res.status(400).json({ message: "transaction_id is required" });
+    const { order_id, reason, refund_amount, staff_id, ccavenue_ref, bank_ref_no } = req.body;
+    if (!order_id) {
+      return res.status(400).json({ message: "order_id is required" });
     }
 
-    const auditLog = await mongoose.connection.collection('payment_audit_logs').findOne({ transaction_id });
-    
+    const auditLog = await mongoose.connection.collection('payment_initiated').findOne({ orderId: order_id });
+
     if (!auditLog) {
-      return res.status(404).json({ message: "Transaction not found in payment audit logs" });
+      return res.status(404).json({ message: "Transaction not found in payment initiated logs" });
     }
 
-    await mongoose.connection.collection('refund').insertOne({
+    await mongoose.connection.collection('refund_payments').insertOne({
       ...auditLog,
-      status: "Refunded",
+      status: "refund_initiated",
+      ccavenue_ref: ccavenue_ref,
+      bank_ref_no: bank_ref_no,
       refund_amount: refund_amount || auditLog.payment_details?.amount_paid || 0,
       staff_id: staff_id,
       reason: reason || "Marked for refund by admin",
       moved_at: new Date()
     });
 
-    await mongoose.connection.collection('payment_audit_logs').deleteOne({ _id: auditLog._id });
+    await mongoose.connection.collection('payment_initiated').deleteOne({ _id: auditLog._id });
 
     return res.status(200).json({
       status: "success",

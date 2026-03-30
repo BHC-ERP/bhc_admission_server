@@ -3,11 +3,11 @@ import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
 import { getApplicationStats } from "../controllers/admin/stats.controller";
 import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
-import { 
-  getNotification, 
-  createNotification, 
-  updateNotification, 
-  deleteNotification 
+import {
+  getNotification,
+  createNotification,
+  updateNotification,
+  deleteNotification
 } from "../controllers/admin/notification.controller";
 
 
@@ -621,8 +621,11 @@ router.get(
 
 router.get("/dashboard/stats", getApplicationStats);
 router.get("/dashboard/programme-wise", getProgrammeWiseStats);
+// ++++++++++++++++++++++++Site Notification++++++++++++++++++++++++++
 router.get("/adm_site/notification", getNotification);
 router.post("/adm_site/notification", createNotification);
 router.put("/adm_site/notification/:id", updateNotification);
 router.delete("/adm_site/notification/:id", deleteNotification);
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 export default router;
