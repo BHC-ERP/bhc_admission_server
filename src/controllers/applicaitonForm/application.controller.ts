@@ -847,22 +847,22 @@ export const addressController = async (req: Request, res: Response) => {
         }
 
         // Validate pincode if provided
-        const pincodeRegex = /^\d{6}$/;
-        if (addressData.present_address.pincode && !pincodeRegex.test(addressData.present_address.pincode)) {
-            return res.status(400).json({
-                message: "Invalid present address pincode format",
-                field: "present_address.pincode"
-            });
-        }
+        // const pincodeRegex = /^\d{6}$/;
+        // if (addressData.present_address.pincode && !pincodeRegex.test(addressData.present_address.pincode)) {
+        //     return res.status(400).json({
+        //         message: "Invalid present address pincode format",
+        //         field: "present_address.pincode"
+        //     });
+        // }
 
-        if (addressData.permanent_address.pincode && !addressData.permanent_address.same_as_present) {
-            if (!pincodeRegex.test(addressData.permanent_address.pincode)) {
-                return res.status(400).json({
-                    message: "Invalid permanent address pincode format",
-                    field: "permanent_address.pincode"
-                });
-            }
-        }
+        // if (addressData.permanent_address.pincode && !addressData.permanent_address.same_as_present) {
+        //     if (!pincodeRegex.test(addressData.permanent_address.pincode)) {
+        //         return res.status(400).json({
+        //             message: "Invalid permanent address pincode format",
+        //             field: "permanent_address.pincode"
+        //         });
+        //     }
+        // }
 
         // Update candidate with address details
         const updatedCandidate = await CandidateAdmission.findOneAndUpdate(

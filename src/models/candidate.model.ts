@@ -158,7 +158,6 @@ const CandidateSchema = new mongoose.Schema({
             pincode: {
                 type: String,
                 trim: true,
-                match: [/^\d{6}$/, "Invalid pincode"],
                 set: (v: string) => v ? v.replace(/\s+/g, '') : v
             },
             type: {

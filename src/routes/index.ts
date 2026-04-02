@@ -9,6 +9,7 @@ import visitorRoutes from "./visitor.routes";
 import adminRoutes from "./admin.routes";
 import paymentRoutes from './payment.routes'
 import visitRoutes from "./visitor.routes";
+import transactionRoutes from "./transaction.routes";
 
 const router = Router();
 
@@ -22,4 +23,5 @@ router.use("/protected", protectedRoutes);
 router.use("/programs", programsRoutes);
 router.use("/docs/upload", uploadRoutes);
 router.use("/visitor", visitorRoutes);
+router.use("/transactions", transactionRoutes);
 export default router;

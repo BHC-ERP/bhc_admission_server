@@ -114,23 +114,28 @@ router.post('/missed_save', async (req, res) => {
     console.error("Missed save error:", err);
     res.status(500).json({ message: "Error handling missed payment" });
   } finally {
-    // Check if the user ultimately exists (either already existed or was just created)
-    if (mobile && transactionId && orderId) {
-      let existing = await CandidateAdmission.findOne({
-        "personal_details.phone": mobile
+    if (mobile) {
+      // Find the associated pending payment by mobile or exact orderId if provided as transaction_id
+      const pendingReq = await mongoose.connection.collection('payment_initiated').findOne({
+        $or: [
+          { orderId: transactionId },
+          { "candidateDetails.personal_details.contact_info.mobile": mobile }
+        ]
       });
 
-      if (existing) {
-        const auditLog = await mongoose.connection.collection('payment_audit_logs').findOne({ transaction_id: transactionId });
-        if (auditLog) {
+      if (pendingReq) {
+        const { _id, ...insertData } = pendingReq;
+        // Ensure idempotency for missed_delete insert
+        const alreadyMoved = await mongoose.connection.collection('missed_delete').findOne({ orderId: pendingReq.orderId });
+        if (!alreadyMoved) {
           await mongoose.connection.collection('missed_delete').insertOne({
-            ...auditLog,
+            ...insertData,
             status: "Resolved",
             staff_id: staffid,
             moved_at: new Date()
           });
-          await mongoose.connection.collection('payment_initiated').deleteOne({ order_id: orderId });
         }
+        await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pendingReq._id });
       }
     }
   }
@@ -216,22 +221,28 @@ router.post('/missed_Add_more_courses', async (req, res) => {
       error: err.message
     });
   } finally {
-    if (mobile && transactionId) {
-      let existing = await CandidateAdmission.findOne({
-        "personal_details.phone": mobile
+    if (mobile) {
+      // Find the associated pending payment by mobile or exact orderId if provided as transaction_id
+      const pendingReq = await mongoose.connection.collection('payment_initiated').findOne({
+        $or: [
+          { orderId: transactionId },
+          { "candidateDetails.personal_details.contact_info.mobile": mobile }
+        ]
       });
 
-      if (existing) {
-        const auditLog = await mongoose.connection.collection('payment_audit_logs').findOne({ transaction_id: transactionId });
-        if (auditLog) {
+      if (pendingReq) {
+        const { _id, ...insertData } = pendingReq;
+        // Ensure idempotency for missed_delete insert
+        const alreadyMoved = await mongoose.connection.collection('missed_delete').findOne({ orderId: pendingReq.orderId });
+        if (!alreadyMoved) {
           await mongoose.connection.collection('missed_delete').insertOne({
-            ...auditLog,
+            ...insertData,
             status: "Resolved",
             staff_id: staffid,
             moved_at: new Date()
           });
-          await mongoose.connection.collection('payment_audit_logs').deleteOne({ _id: auditLog._id });
         }
+        await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pendingReq._id });
       }
     }
   }
@@ -305,6 +316,243 @@ router.post('/refund_payment', async (req, res) => {
   } catch (err: any) {
     console.error("Refund route error:", err);
     res.status(500).json({ message: "Error processing refund", error: err.message });
+  }
+});
+
+// Bulk reconcile route
+router.post('/bulk_reconcile', async (req, res) => {
+  try {
+    const { batch, staff_id } = req.body; // batch: { orderId, isShipped, isAddMore, transactionId, paymentDate, bankRefNo, status, actualStatus, candidateDetails, amount }[]
+
+    if (!batch || !Array.isArray(batch)) {
+      return res.status(400).json({ message: "Batch array is required" });
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      details: [] as any[]
+    };
+
+    for (const item of batch) {
+      const { orderId, isShipped, isAddMore, candidateDetails, amount, transactionId, paymentDate, bankRefNo, actualStatus } = item;
+
+      try {
+        // Skip if status is 'Not Found in Excel' or 'Awaited'
+        if (actualStatus === 'Not Found in Excel' || actualStatus === 'Awaited') {
+          results.details.push({ orderId, status: "Skipped", message: `Status is ${actualStatus}` });
+          continue;
+        }
+
+        if (isShipped) {
+          // Logic from missed_save or missed_Add_more_courses
+          const mobile = candidateDetails?.personal_details?.contact_info?.mobile;
+          if (!mobile) throw new Error("Mobile required");
+
+          let existing = await CandidateAdmission.findOne({ "personal_details.phone": mobile });
+
+          if (isAddMore) {
+            if (!existing) throw new Error("Candidate not found for Add More");
+
+            const selected_courses = candidateDetails?.selected_courses;
+            await addMoreCandidateCoursesService(existing._id.toString(), selected_courses, {
+              amount_paid: amount ? parseFloat(amount) : 0,
+              transaction_id: transactionId,
+              transaction_date: paymentDate || new Date().toISOString(),
+              payment_method: "ccavenue_missed"
+            });
+
+            await createPaymentAuditLog({
+              personal_details: candidateDetails,
+              selected_courses,
+              payment_details: {
+                payment_method: "ccavenue_missed",
+                amount_paid: amount ? parseFloat(amount) : 0,
+                status: "Success",
+                transaction_id: transactionId,
+                bank_ref_no: bankRefNo || null,
+                transaction_date: paymentDate || new Date().toISOString(),
+                is_add_more: true
+              },
+              step_completed: candidateDetails?.step_completed
+            });
+          } else {
+            if (existing) {
+              // 🔍 Candidate exists, check if THIS specific order was also successful (Double Payment)
+              const currentTx = await mongoose.connection.collection('transactions').findOne({
+                orderNo: orderId,
+                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              });
+
+              if (currentTx) {
+                const pending = await mongoose.connection.collection('payment_initiated').findOne({ orderId });
+                if (pending) {
+                  const { _id, ...insertData } = pending;
+                  await mongoose.connection.collection('refund_payments').insertOne({
+                    ...insertData,
+                    status: "refund_initiated",
+                    ccavenue_ref: currentTx.ccavenueRef,
+                    bank_ref_no: currentTx.orderBankRefNo,
+                    refund_amount: currentTx.orderAmount || pending.amount || 0,
+                    staff_id: staff_id,
+                    reason: `${currentTx.ccavenueRef}- ccavenue ref no order successfull status - ${currentTx.orderStatus} (Already Registered - Refund Needed)`,
+                    moved_at: new Date()
+                  });
+                  await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pending._id });
+                  results.success++;
+                  results.details.push({ orderId, status: "Moved to Refund", message: "Already Existing - Extra Success Payment" });
+                }
+              } else {
+                // If not successful, just clear it from initiated
+                await mongoose.connection.collection('payment_initiated').deleteOne({ orderId });
+                results.details.push({ orderId, status: "Skipped", message: "Already Existing - No action needed" });
+              }
+              continue;
+            }
+
+            const applicationInfo = candidateDetails.personal_details.application_info;
+            const transformedBody = {
+              personal_details: {
+                ...candidateDetails.personal_details,
+                application_info: {
+                  application_count: applicationInfo.application_count,
+                  application_type: applicationInfo.application_type,
+                  program_code: applicationInfo.program_codes,
+                  program_names: applicationInfo.program_names,
+                  program_streams: applicationInfo.program_streams
+                }
+              },
+              selected_courses: candidateDetails.selected_courses,
+              payment_details: {
+                payment_method: 'ccavenue_missed',
+                amount_paid: amount,
+                status: "success",
+                transaction_id: transactionId,
+                transaction_date: paymentDate || new Date(),
+                bank_ref_no: bankRefNo,
+              }
+            };
+
+            await createPaymentAuditLog({
+              personal_details: candidateDetails,
+              selected_courses: candidateDetails?.selected_courses || [],
+              payment_details: {
+                payment_method: "ccavenue_missed",
+                amount_paid: amount ? parseFloat(amount) : 0,
+                status: "Success",
+                transaction_id: transactionId,
+                bank_ref_no: bankRefNo || null,
+                transaction_date: paymentDate || new Date().toISOString()
+              },
+              step_completed: candidateDetails?.step_completed
+            });
+
+            // 🔥 CALL candidateSignup LOGIC properly for batch
+            const signupReq = { ...req, body: transformedBody } as any;
+            const signupRes = {
+              _statusCode: 200,
+              status: function (code: number) { this._statusCode = code; return this; },
+              json: function (data: any) { this.data = data; return this; },
+              data: null as any
+            } as any;
+
+            console.log(`[Bulk Reconcile] Registering candidate for Order: ${orderId}, Phone: ${mobile}`);
+            await candidateSignup(signupReq, signupRes);
+            console.log(`[Bulk Reconcile] Result for Order ${orderId}: Status ${signupRes._statusCode}, Data:`, signupRes.data);
+
+            if (signupRes._statusCode >= 400) {
+              throw new Error(signupRes.data?.message || `Candidate creation failed with status ${signupRes._statusCode}`);
+            }
+          }
+
+          // ✅ SECURE CLEANUP AND DUPLICATE HANDLING
+          const allPendingForUser = await mongoose.connection.collection('payment_initiated').find({
+            "candidateDetails.personal_details.contact_info.mobile": candidateDetails?.personal_details?.contact_info?.mobile
+          }).toArray();
+
+          for (const pending of allPendingForUser) {
+            const { _id, ...insertData } = pending;
+
+            if (pending.orderId === orderId) {
+              // 1. Current successfully reconciled orderId -> missed_delete
+              const alreadyMoved = await mongoose.connection.collection('missed_delete').findOne({ orderId: pending.orderId });
+              if (!alreadyMoved) {
+                await mongoose.connection.collection('missed_delete').insertOne({
+                  ...insertData,
+                  status: "Resolved",
+                  staff_id: staff_id,
+                  moved_at: new Date()
+                });
+              }
+            } else {
+              // 2. Extra duplicate orders -> check if they were also successful ('Shipped' or 'Successfull')
+              const extraTx = await mongoose.connection.collection('transactions').findOne({
+                orderNo: pending.orderId,
+                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              });
+
+              if (extraTx) {
+                // Duplicate SUCCESSFUL payment -> refund_payments
+                await mongoose.connection.collection('refund_payments').insertOne({
+                  ...insertData,
+                  status: "refund_initiated",
+                  ccavenue_ref: extraTx.ccavenueRef,
+                  bank_ref_no: extraTx.orderBankRefNo,
+                  refund_amount: extraTx.orderAmount || pending.amount || 0,
+                  staff_id: staff_id,
+                  reason: `${extraTx.ccavenueRef}- ccavenue ref no order successfull status - ${extraTx.orderStatus} (Duplicate)`,
+                  moved_at: new Date()
+                });
+              } else {
+                // Duplicate UNSUCCESSFUL attempt -> missed_delete
+                await mongoose.connection.collection('missed_delete').insertOne({
+                  ...insertData,
+                  status: "Resolved",
+                  reason: "Duplicate session cleared",
+                  staff_id: staff_id,
+                  moved_at: new Date()
+                });
+              }
+            }
+            // Delete from initiated after moving to appropriate collection
+            await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pending._id });
+          }
+
+          results.success++;
+          results.details.push({ orderId, status: "Success" });
+        } else {
+          // Move to unsuccessful_payment
+          const auditLog = await mongoose.connection.collection('payment_initiated').findOne({ orderId });
+          if (auditLog) {
+            await mongoose.connection.collection('unsuccessful_payment').insertOne({
+              ...auditLog,
+              status: "Unsuccessful",
+              reason: `Excel Status - ${actualStatus || 'Dropped'}: Order not successful`,
+              staff_id: staff_id,
+              moved_at: new Date()
+            });
+            await mongoose.connection.collection('payment_initiated').deleteOne({ _id: auditLog._id });
+            results.success++;
+            results.details.push({ orderId, status: "Moved to Unsuccessful" });
+          } else {
+            results.failed++;
+            results.details.push({ orderId, status: "Failed", message: "Not found in initiated" });
+          }
+        }
+      } catch (err: any) {
+        results.failed++;
+        results.details.push({ orderId, status: "Error", message: err.message });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      summary: results
+    });
+
+  } catch (err: any) {
+    console.error("Bulk reconcile error:", err);
+    res.status(500).json({ message: "Bulk reconciliation failed", error: err.message });
   }
 });
 
