@@ -282,6 +282,19 @@ router.post('/unsuccessful_payment', async (req, res) => {
   }
 });
 
+router.get('/unsuccessful_payments', async (req, res) => {
+  try {
+    const data = await mongoose.connection.collection('unsuccessful_payment')
+      .find({})
+      .sort({ moved_at: -1 })
+      .toArray();
+    return res.status(200).json({ status: "success", data });
+  } catch (err: any) {
+    console.error("Get unsuccessful payments error:", err);
+    res.status(500).json({ message: "Error fetching unsuccessful payments", error: err.message });
+  }
+});
+
 // Move to refund collection
 router.post('/refund_payment', async (req, res) => {
   try {
@@ -316,6 +329,19 @@ router.post('/refund_payment', async (req, res) => {
   } catch (err: any) {
     console.error("Refund route error:", err);
     res.status(500).json({ message: "Error processing refund", error: err.message });
+  }
+});
+
+router.get('/refund_payments', async (req, res) => {
+  try {
+    const data = await mongoose.connection.collection('refund_payments')
+      .find({})
+      .sort({ moved_at: -1 })
+      .toArray();
+    return res.status(200).json({ status: "success", data });
+  } catch (err: any) {
+    console.error("Get refund payments error:", err);
+    res.status(500).json({ message: "Error fetching refund payments", error: err.message });
   }
 });
 
