@@ -1197,16 +1197,23 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
 
         const Transaction = mongoose.model('Transaction');
 
-        // Extract all mobiles and orderIds
+        // Extract all mobiles, aadhar numbers and orderIds
         const mobiles = payments.map((p: any) =>
             p?.candidateDetails?.personal_details?.contact_info?.mobile
         ).filter(Boolean);
 
+        const aadhars = payments.map((p: any) =>
+            p?.candidateDetails?.personal_details?.basic_info?.aadhar_number
+        ).filter(Boolean);
+
         const orderIds = payments.map((p: any) => p.orderId).filter(Boolean);
 
-        // Fetch all matching candidates
+        // Fetch all matching candidates by phone or aadhar
         const candidates = await CandidateAdmission.find({
-            'personal_details.phone': { $in: mobiles }
+            $or: [
+                { 'personal_details.phone': { $in: mobiles } },
+                { 'personal_details.aadharNumber': { $in: aadhars } }
+            ]
         }).lean();
 
         // Fetch matching Shipped transactions (to flag them in the UI)
@@ -1214,10 +1221,12 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             orderNo: { $in: orderIds } // We fetch all matching from Excel to show actual status
         }).lean() as any[];
 
-        // Create lookup map (O(1) access)
+        // Create lookup maps (O(1) access)
         const candidateMap = new Map();
+        const aadharMap = new Map();
         candidates.forEach((c: any) => {
-            candidateMap.set(c.personal_details.phone, c);
+            if (c.personal_details.phone) candidateMap.set(c.personal_details.phone, c);
+            if (c.personal_details.aadharNumber) aadharMap.set(c.personal_details.aadharNumber, c);
         });
 
         const transactionMap = new Map();
@@ -1233,9 +1242,11 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
 
         for (const p of payments) {
             const phone = p?.candidateDetails?.personal_details?.contact_info?.mobile;
+            const aadhar = p?.candidateDetails?.personal_details?.basic_info?.aadhar_number;
             if (!phone) continue;
 
             const candidate = candidateMap.get(phone);
+            const aadharCandidate = aadhar ? aadharMap.get(aadhar) : null;
             const matchedTransactions = transactionMap.get(p.orderId) || [];
             let transaction = null;
 
@@ -1252,8 +1263,9 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             const enrichedItem: any = {
                 ...p,
                 already_registered: !!candidate,
-                candidate_id: candidate?._id || null,
-                candidate_reg_number: candidate?.registration_number || null,
+                aadhar_duplicate: !!aadharCandidate,
+                candidate_id: candidate?._id || aadharCandidate?._id || null,
+                candidate_reg_number: candidate?.registration_number || aadharCandidate?.registration_number || null,
                 amount: transaction ? transaction.orderAmount : p.amount,
                 transaction_id: transaction ? transaction.orderNo : p.orderId,
                 payment_date: transaction ? transaction.orderDatetime : p.timestamp,
