@@ -227,16 +227,19 @@ export const candidateSignup = async (
         const existing = await CandidateAdmission.findOne({
             $or: [
                 { "personal_details.phone": mobile },
+                { "personal_details.aadharNumber": personal_details?.basic_info?.aadhar_number }
             ]
         });
 
         if (existing) {
             console.log("3a. Duplicate found:", {
-                existing_phone: existing.personal_details?.phone,
-                registration_number: existing.registration_number
+                registration_number: existing.registration_number,
+                matched_field: existing.personal_details?.phone === mobile ? "Mobile" : "Aadhar"
             });
             return res.status(409).json({
-                message: "Candidate already registered with this mobile number or email"
+                message: existing.personal_details?.phone === mobile 
+                    ? "Candidate already registered with this mobile number"
+                    : "Candidate already registered with this Aadhar number"
             });
         }
         console.log("3b. No duplicates found");
@@ -481,7 +484,7 @@ export const candidateSignup = async (
                 }
             },
             metadata: {
-                ip_address: req.ip || req.socket.remoteAddress,
+                ip_address: req.ip || req.socket?.remoteAddress,
                 user_agent: req.headers?.['user-agent'] || "Unknown",
                 version: 1,
                 is_active: true,
