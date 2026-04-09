@@ -42,8 +42,12 @@ router.post('/missed_save', async (req, res) => {
     }
 
     // 🔍 Check existing (IMPORTANT: use correct field)
+    const aadhar = candidateDetails?.personal_details?.basic_info?.aadhar_number;
     let existing = await CandidateAdmission.findOne({
-      "personal_details.phone": mobile
+      $or: [
+        { "personal_details.phone": mobile },
+        { "personal_details.aadharNumber": aadhar }
+      ]
     });
 
     // =============================
@@ -405,9 +409,10 @@ router.post('/bulk_reconcile', async (req, res) => {
           } else {
             if (existing) {
               // 🔍 Candidate exists, check if THIS specific order was also successful (Double Payment)
-              const currentTx = await mongoose.connection.collection('transactions').findOne({
-                orderNo: orderId,
-                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+              const currentTx = await ccCollection.findOne({
+                "data.order_id": orderId,
+                "data.order_status": "Success"
               });
 
               if (currentTx) {
@@ -417,11 +422,11 @@ router.post('/bulk_reconcile', async (req, res) => {
                   await mongoose.connection.collection('refund_payments').insertOne({
                     ...insertData,
                     status: "refund_initiated",
-                    ccavenue_ref: currentTx.ccavenueRef,
-                    bank_ref_no: currentTx.orderBankRefNo,
-                    refund_amount: currentTx.orderAmount || pending.amount || 0,
+                    ccavenue_ref: currentTx.data.tracking_id,
+                    bank_ref_no: currentTx.data.bank_ref_no,
+                    refund_amount: currentTx.data.amount || pending.amount || 0,
                     staff_id: staff_id,
-                    reason: `${currentTx.ccavenueRef}- ccavenue ref no order successfull status - ${currentTx.orderStatus} (Already Registered - Refund Needed)`,
+                    reason: `${currentTx.data.tracking_id}- ccavenue ref no order successfull status - ${currentTx.data.order_status} (Already Registered - Refund Needed)`,
                     moved_at: new Date()
                   });
                   await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pending._id });
@@ -512,9 +517,10 @@ router.post('/bulk_reconcile', async (req, res) => {
               }
             } else {
               // 2. Extra duplicate orders -> check if they were also successful ('Shipped' or 'Successfull')
-              const extraTx = await mongoose.connection.collection('transactions').findOne({
-                orderNo: pending.orderId,
-                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+              const extraTx = await ccCollection.findOne({
+                "data.order_id": pending.orderId,
+                "data.order_status": "Success"
               });
 
               if (extraTx) {
@@ -522,11 +528,11 @@ router.post('/bulk_reconcile', async (req, res) => {
                 await mongoose.connection.collection('refund_payments').insertOne({
                   ...insertData,
                   status: "refund_initiated",
-                  ccavenue_ref: extraTx.ccavenueRef,
-                  bank_ref_no: extraTx.orderBankRefNo,
-                  refund_amount: extraTx.orderAmount || pending.amount || 0,
+                  ccavenue_ref: extraTx.data.tracking_id,
+                  bank_ref_no: extraTx.data.bank_ref_no,
+                  refund_amount: extraTx.data.amount || pending.amount || 0,
                   staff_id: staff_id,
-                  reason: `${extraTx.ccavenueRef}- ccavenue ref no order successfull status - ${extraTx.orderStatus} (Duplicate)`,
+                  reason: `${extraTx.data.tracking_id}- ccavenue ref no order successfull status - ${extraTx.data.order_status} (Duplicate)`,
                   moved_at: new Date()
                 });
               } else {

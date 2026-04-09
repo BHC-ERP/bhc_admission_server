@@ -1195,8 +1195,6 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             .sort({ timestamp: -1 })
             .toArray();
 
-        const Transaction = mongoose.model('Transaction');
-
         // Extract all mobiles, aadhar numbers and orderIds
         const mobiles = payments.map((p: any) =>
             p?.candidateDetails?.personal_details?.contact_info?.mobile
@@ -1216,10 +1214,12 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             ]
         }).lean();
 
-        // Fetch matching Shipped transactions (to flag them in the UI)
-        const transactions = await Transaction.find({
-            orderNo: { $in: orderIds } // We fetch all matching from Excel to show actual status
-        }).lean() as any[];
+        const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+
+        // Fetch all matching Success transactions from CCAvenue Logs
+        const transactions = await ccCollection.find({
+            "data.order_id": { $in: orderIds }
+        }).toArray() as any[];
 
         // Create lookup maps (O(1) access)
         const candidateMap = new Map();
@@ -1231,10 +1231,10 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
 
         const transactionMap = new Map();
         transactions.forEach((t: any) => {
-            if (!transactionMap.has(t.orderNo)) {
-                transactionMap.set(t.orderNo, []);
+            if (!transactionMap.has(t.data.order_id)) {
+                transactionMap.set(t.data.order_id, []);
             }
-            transactionMap.get(t.orderNo).push(t);
+            transactionMap.get(t.data.order_id).push(t);
         });
 
         // Group enriched data by candidate (phone) for deduplication
@@ -1252,13 +1252,13 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
 
             if (matchedTransactions.length > 0) {
                 // Priority logic for multiple transaction records for ONE orderId
-                transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped' && t.billTel === phone);
-                if (!transaction) transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped');
-                if (!transaction) transaction = matchedTransactions.find((t: any) => t.billTel === phone);
+                transaction = matchedTransactions.find((t: any) => t.data.order_status === 'Success' && t.data.billing_tel === phone);
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.data.order_status === 'Success');
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.data.billing_tel === phone);
                 if (!transaction) transaction = matchedTransactions[0];
             }
 
-            const is_shipped = transaction ? (transaction.orderStatus === 'Shipped') : false;
+            const is_shipped = transaction ? (transaction.data.order_status === 'Success') : false;
 
             const enrichedItem: any = {
                 ...p,
@@ -1266,13 +1266,13 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
                 aadhar_duplicate: !!aadharCandidate,
                 candidate_id: candidate?._id || aadharCandidate?._id || null,
                 candidate_reg_number: candidate?.registration_number || aadharCandidate?.registration_number || null,
-                amount: transaction ? transaction.orderAmount : p.amount,
-                transaction_id: transaction ? transaction.orderNo : p.orderId,
-                payment_date: transaction ? transaction.orderDatetime : p.timestamp,
+                amount: transaction ? transaction.data.amount : p.amount,
+                transaction_id: transaction ? transaction.data.tracking_id : p.orderId,
+                payment_date: transaction ? transaction.data.trans_date : p.timestamp,
                 timestamp: p.timestamp, // Keep for sorting/deduplication
-                bank_ref_no: transaction ? transaction.orderBankRefNo : 'N/A',
+                bank_ref_no: transaction ? transaction.data.bank_ref_no : 'N/A',
                 is_shipped_in_excel: is_shipped,
-                actual_transaction_status: transaction ? transaction.orderStatus : 'Not Found in Excel'
+                actual_transaction_status: transaction ? transaction.data.order_status : 'Not Found in Logs'
             };
 
             // DEDUPLICATION: Group by phone number
