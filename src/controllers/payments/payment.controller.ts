@@ -1130,17 +1130,16 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
 
         // 1. Parallel fetch from selected collections
         const candidatesPromise = CandidateAdmission.find({ "payment.status": "success" }).lean();
-        const refundsPromise = mongoose.connection.collection('refund_payments').find().toArray();
+        const transactionTestsPromise = mongoose.connection.collection('transaction_tests').find().toArray();
 
-        const [candidates, refunds] = await Promise.all([
+        const [candidates, transactionTests] = await Promise.all([
             candidatesPromise,
-            refundsPromise
+            transactionTestsPromise
         ]);
 
-        // 2. Comprehensive Deduplication using composite keys (Transaction ID + Bank Ref)
+        // 2. Comprehensive Deduplication using composite keys (Tracking ID + Order ID)
         const transactionMap = new Map<string, any>();
         const seenCombinedKeys = new Set<string>();
-        const seenOrderIds = new Set<string>();
 
         // Priority 1: Successful registrations in CandidateAdmission (Excluding Exempted)
         candidates.forEach((c: any) => {
@@ -1150,9 +1149,10 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
                 
                 // Explicitly skip exempted or zero-amount entries
                 if (status === 'success' && p.transaction_id && amount > 0) {
-                    const txId = String(p.transaction_id).trim();
+                    const txId = String(p.transaction_id).trim(); // tracking id
+                    const orderId = String((p as any).gateway_response?.order_id || (p as any).order_id || '').trim();
                     const bankRef = String(p.bank_ref_no || '----').trim();
-                    const combinedKey = `${txId}_${bankRef}`;
+                    const combinedKey = `${txId}_${orderId}`;
                     
                     if (!seenCombinedKeys.has(combinedKey)) {
                         seenCombinedKeys.add(combinedKey);
@@ -1181,7 +1181,7 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
                                 bank_ref_no: bankRef,
                                 gateway_response: {
                                     trans_date: p.payment_date,
-                                    order_id: '----'
+                                    order_id: orderId || '----'
                                 }
                             },
                             selected_courses: c.application_preferences?.applications?.map((a: any) => ({
@@ -1198,25 +1198,23 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             });
         });
 
-        // Priority 2: Refund payments (Duplicate successes)
-        refunds.forEach((r: any) => {
+        // Priority 2: Transaction tests (Duplicate successes)
+        transactionTests.forEach((r: any) => {
             const txId = String(r.ccavenue_ref || r.transaction_id || '').trim();
             const bankRef = String(r.bank_ref_no || '----').trim();
             const orderId = String(r.orderId || r.orderNo || '').trim();
-            const combinedKey = `${txId}_${bankRef}`;
+            const combinedKey = `${txId}_${orderId}`;
             
-            // Deduplication: If BOTH transaction_id and bank_ref_no match, OR orderId matches
-            const isDuplicate = (txId !== '' && seenCombinedKeys.has(combinedKey)) || 
-                               (orderId !== '' && seenOrderIds.has(orderId));
+            // Deduplication: Both tracking ID AND order ID must match together
+            const isDuplicate = (txId !== '' && orderId !== '' && seenCombinedKeys.has(combinedKey));
 
             if (!isDuplicate) {
-                if (txId !== '') seenCombinedKeys.add(combinedKey);
-                if (orderId !== '') seenOrderIds.add(orderId);
+                if (txId !== '' && orderId !== '') seenCombinedKeys.add(combinedKey);
 
                 const txKey = txId || orderId || String(r._id);
                 transactionMap.set(txKey, {
                     _id: r._id,
-                    source: 'refund_payments',
+                    source: 'transaction_tests',
                     createdAt: r.moved_at || r.timestamp,
                     personal_details: r.candidateDetails?.personal_details ? {
                         personal_details: r.candidateDetails.personal_details
@@ -1263,7 +1261,7 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             
             const amountValue = Number(item.payment_details?.amount_paid) || 0;
             if (status === 'success') {
-                if (item.source === 'refund_payments') {
+                if (item.source === 'transaction_tests') {
                     stats.refunded += amountValue;
                 } else {
                     stats.collected += amountValue;

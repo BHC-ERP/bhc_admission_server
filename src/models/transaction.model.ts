@@ -201,4 +201,4 @@ const transactionSchema = new Schema<ITransaction>({
 
 }, { timestamps: true });
 
-export default mongoose.model<ITransaction>("Transaction", transactionSchema);
+export default mongoose.model<ITransaction>("Transaction_test", transactionSchema);
