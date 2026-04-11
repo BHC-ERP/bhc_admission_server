@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import CandidateAdmission from "../../models/candidate.model";
+import Program from "../../models/programs.model";
 
 export const getApplicationStats = async (req: Request, res: Response) => {
     try {
@@ -125,10 +126,49 @@ export const getApplicationStats = async (req: Request, res: Response) => {
                         {
                             $group: {
                                 _id: {
-                                    program: "$appliedProgrammeType",
-                                    course: "$application_preferences.applications.program_name"
+                                    program_code: "$application_preferences.applications.program_code",
+                                    program_name: "$application_preferences.applications.program_name",
+                                    programType: "$appliedProgrammeType"
                                 },
-                                count: { $sum: 1 }
+                                count: { $sum: 1 },
+                                registered: {
+                                    $sum: {
+                                        $cond: [
+                                            { $gt: ["$metadata.submitted_at", null] },
+                                            1,
+                                            0
+                                        ]
+                                    }
+                                },
+                                marksEntered: {
+                                    $sum: {
+                                        $cond: [
+                                            { $gt: ["$academic_background.school_education.twelfth.marks.percentage", 0] },
+                                            1,
+                                            0
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "programs",
+                                localField: "_id.program_code",
+                                foreignField: "program_code",
+                                as: "program_info"
+                            }
+                        },
+                        {
+                            $addFields: {
+                                department_code: { $arrayElemAt: ["$program_info.department_code", 0] },
+                                department_name: { $arrayElemAt: ["$program_info.department_name", 0] },
+                                stream: { $arrayElemAt: ["$program_info.stream", 0] }
+                            }
+                        },
+                        {
+                            $project: {
+                                program_info: 0
                             }
                         }
                     ],
@@ -158,6 +198,7 @@ export const getApplicationStats = async (req: Request, res: Response) => {
                                         input: "$application_preferences.applications",
                                         as: "app",
                                         in: {
+                                            program_code: "$$app.program_code",
                                             program_name: "$$app.program_name",
                                             stream: "$$app.stream",
                                             application_number: "$$app.application_number",
@@ -214,7 +255,8 @@ export const getApplicationStats = async (req: Request, res: Response) => {
                 selfFinanceFree: 0,
                 selfFinancePaid: 0
             },
-            courseWise: []
+            courseWise: [],
+            departmentWise: []
         });
 
         const summary: any = {
@@ -292,22 +334,76 @@ export const getApplicationStats = async (req: Request, res: Response) => {
             summary[item._id].marksEntered = item.count;
         });
 
-        /* =========================
-           COURSE WISE
-        ========================= */
+        const departmentMapStats: any = {
+            UG: {} as Record<string, any>,
+            PG: {} as Record<string, any>,
+            combined: {} as Record<string, any>
+        };
 
         data.courseWise.forEach((item: any) => {
-            summary[item._id.program].courseWise.push({
-                course: item._id.course,
-                count: item.count
+            const courseData = {
+                department_code: item.department_code,
+                department_name: item.department_name,
+                stream: item.stream,
+                program_code: item._id.program_code,
+                course: item._id.program_name,
+                count: item.count,
+                registered: item.registered || 0,
+                marksEntered: item.marksEntered || 0
+            };
+
+            const pt = item._id.programType;
+            summary[pt].courseWise.push(courseData);
+            summary.combined.courseWise.push(courseData);
+
+            // Department Wise Aggregation
+            [pt, "combined"].forEach(type => {
+                const deptCode = item.department_code || "UNKNOWN";
+                if (!departmentMapStats[type][deptCode]) {
+                    departmentMapStats[type][deptCode] = {
+                        department_code: item.department_code,
+                        department_name: item.department_name,
+                        count: 0,
+                        registered: 0,
+                        marksEntered: 0
+                    };
+                }
+                departmentMapStats[type][deptCode].count += courseData.count;
+                departmentMapStats[type][deptCode].registered += courseData.registered;
+                departmentMapStats[type][deptCode].marksEntered += courseData.marksEntered;
             });
         });
+
+        summary.UG.departmentWise = Object.values(departmentMapStats.UG);
+        summary.PG.departmentWise = Object.values(departmentMapStats.PG);
+        summary.combined.departmentWise = Object.values(departmentMapStats.combined);
 
         /* =========================
            APPLICATION LIST
         ========================= */
 
-        const allApplications = data.applications;
+        /* =========================
+           ENRICH WITH DEPT CODE
+        ========================= */
+        const allPrograms = await Program.find({}, "program_code department_code department_name").lean();
+        const deptMap: Record<string, { code: string, name: string }> = {};
+        allPrograms.forEach(p => {
+            if (p.program_code) {
+                deptMap[p.program_code] = {
+                    code: p.department_code || "",
+                    name: (p as any).department_name || ""
+                };
+            }
+        });
+
+        const allApplications = data.applications.map((cand: any) => ({
+            ...cand,
+            applications: cand.applications.map((app: any) => ({
+                ...app,
+                department_code: deptMap[app.program_code]?.code || "",
+                department_name: deptMap[app.program_code]?.name || ""
+            }))
+        }));
 
         const ugApplications = allApplications.filter(
             (a: any) => a.appliedProgrammeType === "UG"
