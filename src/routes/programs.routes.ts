@@ -4,6 +4,7 @@ import {
   getProgramEligibility,
   updateProgramEligibility
 } from "../controllers/programs/programs.controller";
+import departmentVisibilityModel from "../models/departmentVisibility.model";
 
 const router = Router();
 
@@ -18,6 +19,56 @@ router.get("/", async (req, res) => {
     count: programs.length,
     programs
   });
+});
+
+// Get department visibility mapping
+router.get("/visibility", async (req, res) => {
+  try {
+    const visibility = await departmentVisibilityModel.find().lean();
+    // Convert array to Record<string, string[]>
+    const mapping = visibility.reduce((acc: any, curr: any) => {
+      acc[curr.department_code] = curr.allowed_departments;
+      return acc;
+    }, {});
+    
+    return res.json({
+      success: true,
+      data: mapping
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Error fetching visibility" });
+  }
+});
+
+// Update department visibility mapping
+router.post("/visibility", async (req, res) => {
+  const { department_code, allowed_departments } = req.body;
+  try {
+    const updated = await departmentVisibilityModel.findOneAndUpdate(
+      { department_code },
+      { allowed_departments },
+      { upsert: true, new: true }
+    );
+    return res.json({
+      success: true,
+      data: updated
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Error updating visibility" });
+  }
+});
+
+// Delete department visibility mapping
+router.delete("/visibility/:department_code", async (req, res) => {
+  try {
+    await departmentVisibilityModel.findOneAndDelete({ department_code: req.params.department_code });
+    return res.json({
+      success: true,
+      message: "Visibility mapping deleted"
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Error deleting visibility" });
+  }
 });
 
 // Program Eligibility details - GET and UPDATE by program_code and stream

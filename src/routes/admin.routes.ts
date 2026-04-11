@@ -110,7 +110,9 @@ router.get(
         {
           $match: {
             "application_preferences.applications.program_code": programCode,
-            "application_preferences.applications.stream": stream
+            ...(String(stream).toLowerCase() !== 'both' && {
+              "application_preferences.applications.stream": stream
+            })
           }
         },
 
