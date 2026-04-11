@@ -22,6 +22,7 @@ app.use(restrictDirectAccess);
 
 // Routes
 app.use("/api", routes);
+// app.use("/webhook", webhookRoutes);
 
 // Error handler
 app.use(errorHandler);

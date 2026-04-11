@@ -1121,50 +1121,163 @@ export const CheckSuccessStatusResponse = async (
 
 
 
-// Get all payments (Audit Logs with Pagination)
+// Get all payments (Consolidated from CandidateAdmissions, Audit Logs, and Refunds)
 export const getAllPayments = async (req: Request, res: Response): Promise<Response> => {
     try {
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
         const skip = (page - 1) * limit;
 
-        const total = await payment_log.countDocuments();
-        let payments = await payment_log.find()
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean();
+        // 1. Parallel fetch from selected collections
+        const candidatesPromise = CandidateAdmission.find({ "payment.status": "success" }).lean();
+        const transactionTestsPromise = mongoose.connection.collection('transaction_tests').find().toArray();
 
-        // Enrich payments with Candidate details to replace anonymous/na
-        const candidateIds = payments
-            .map((p: any) => p.personal_details?.candidateId)
-            .filter((id: any) => id && typeof id === 'string' && id.length === 24);
+        const [candidates, transactionTests] = await Promise.all([
+            candidatesPromise,
+            transactionTestsPromise
+        ]);
 
-        if (candidateIds.length > 0) {
-            const candidates = await CandidateAdmission.find(
-                { _id: { $in: candidateIds } },
-                { 'personal_details.fullName': 1, 'personal_details.email': 1, 'personal_details.phone': 1 }
-            ).lean();
+        // 2. Comprehensive Deduplication using composite keys (Tracking ID + Order ID)
+        const transactionMap = new Map<string, any>();
+        const seenCombinedKeys = new Set<string>();
 
-            const candidateMap = new Map();
-            candidates.forEach((c: any) => candidateMap.set(c._id.toString(), c));
-
-            payments = payments.map((payment: any) => {
-                const cId = payment.personal_details?.candidateId;
-                if (cId && candidateMap.has(cId.toString())) {
-                    const cData = candidateMap.get(cId.toString());
-
-                    if (!payment.personal_details) payment.personal_details = {};
-                    if (!payment.personal_details.basic_info) payment.personal_details.basic_info = {};
-                    if (!payment.personal_details.contact_info) payment.personal_details.contact_info = {};
-
-                    payment.personal_details.basic_info.name = cData.personal_details?.fullName || "anonymous";
-                    payment.personal_details.contact_info.email = cData.personal_details?.email || "n/a";
-                    payment.personal_details.contact_info.mobile = cData.personal_details?.phone || "n/a";
+        // Priority 1: Successful registrations in CandidateAdmission (Excluding Exempted)
+        candidates.forEach((c: any) => {
+            (c.payment || []).forEach((p: any) => {
+                const status = (p.status || '').toLowerCase();
+                const amount = Number(p.amount) || 0;
+                
+                // Explicitly skip exempted or zero-amount entries
+                if (status === 'success' && p.transaction_id && amount > 0) {
+                    const txId = String(p.transaction_id).trim(); // tracking id
+                    const orderId = String((p as any).gateway_response?.order_id || (p as any).order_id || '').trim();
+                    const bankRef = String(p.bank_ref_no || '----').trim();
+                    const combinedKey = `${txId}_${orderId}`;
+                    
+                    if (!seenCombinedKeys.has(combinedKey)) {
+                        seenCombinedKeys.add(combinedKey);
+                        
+                        transactionMap.set(txId, {
+                            _id: `${c._id}_${txId}`,
+                            source: 'candidate_admission',
+                            createdAt: c.createdAt,
+                            personal_details: {
+                                personal_details: {
+                                    basic_info: {
+                                        name: c.personal_details?.fullName,
+                                        email: c.personal_details?.email,
+                                        mobile: c.personal_details?.phone
+                                    },
+                                    application_info: {
+                                        application_type: c.appliedProgrammeType,
+                                        program_names: c.application_preferences?.applications?.map((a: any) => a.program_name) || []
+                                    }
+                                }
+                            },
+                            payment_details: {
+                                status: 'Success',
+                                amount_paid: Number(p.amount) || 0,
+                                transaction_id: txId,
+                                bank_ref_no: bankRef,
+                                gateway_response: {
+                                    trans_date: p.payment_date,
+                                    order_id: orderId || '----'
+                                }
+                            },
+                            selected_courses: c.application_preferences?.applications?.map((a: any) => ({
+                                course: {
+                                    name: a.program_name,
+                                    code: a.program_code,
+                                    program_type: a.application_type,
+                                    stream: a.stream
+                                }
+                            })) || []
+                        });
+                    }
                 }
-                return payment;
             });
-        }
+        });
+
+        // Priority 2: Transaction tests (Duplicate successes)
+        transactionTests.forEach((r: any) => {
+            const txId = String(r.ccavenue_ref || r.transaction_id || '').trim();
+            const bankRef = String(r.bank_ref_no || '----').trim();
+            const orderId = String(r.orderId || r.orderNo || '').trim();
+            const combinedKey = `${txId}_${orderId}`;
+            
+            // Deduplication: Both tracking ID AND order ID must match together
+            const isDuplicate = (txId !== '' && orderId !== '' && seenCombinedKeys.has(combinedKey));
+
+            if (!isDuplicate) {
+                if (txId !== '' && orderId !== '') seenCombinedKeys.add(combinedKey);
+
+                const txKey = txId || orderId || String(r._id);
+                transactionMap.set(txKey, {
+                    _id: r._id,
+                    source: 'transaction_tests',
+                    createdAt: r.moved_at || r.timestamp,
+                    personal_details: r.candidateDetails?.personal_details ? {
+                        personal_details: r.candidateDetails.personal_details
+                    } : null,
+                    payment_details: {
+                        status: 'Success',
+                        amount_paid: Number(r.refund_amount || r.amount) || 0,
+                        transaction_id: txId || '----',
+                        bank_ref_no: bankRef,
+                        gateway_response: {
+                            trans_date: r.timestamp || r.moved_at,
+                            order_id: orderId || '----',
+                            order_status: 'Duplicate/Refunded'
+                        }
+                    },
+                    selected_courses: r.candidateDetails?.selected_courses || []
+                });
+            }
+        });
+
+        // 3. Sorting and Tallies
+        const unified = Array.from(transactionMap.values());
+        
+        // Sort by Date (Descending)
+        unified.sort((a: any, b: any) => {
+            const dateA = new Date(a.payment_details?.gateway_response?.trans_date || a.createdAt).getTime();
+            const dateB = new Date(b.payment_details?.gateway_response?.trans_date || b.createdAt).getTime();
+            return dateB - dateA;
+        });
+
+        // Calculate Tally (Daily Summary)
+        const tallyMap = new Map();
+        unified.forEach((item: any) => {
+            const dateVal = item.payment_details?.gateway_response?.trans_date || item.createdAt;
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return;
+            const dateStr = d.toISOString().split('T')[0];
+
+            if (!tallyMap.has(dateStr)) {
+                tallyMap.set(dateStr, { date: dateStr, collected: 0, refunded: 0, net: 0 });
+            }
+            const stats = tallyMap.get(dateStr);
+            const status = (item.payment_details?.status || "").toLowerCase();
+            
+            const amountValue = Number(item.payment_details?.amount_paid) || 0;
+            if (status === 'success') {
+                if (item.source === 'transaction_tests') {
+                    stats.refunded += amountValue;
+                } else {
+                    stats.collected += amountValue;
+                }
+            }
+            stats.net = Number((stats.collected - stats.refunded).toFixed(2));
+            stats.collected = Number(stats.collected.toFixed(2));
+            stats.refunded = Number(stats.refunded.toFixed(2));
+        });
+
+        const dailyTally = Array.from(tallyMap.values())
+            .sort((a, b) => b.date.localeCompare(a.date));
+
+        // 4. Pagination
+        const total = unified.length;
+        const pageData = unified.slice(skip, skip + limit);
 
         return res.status(200).json({
             success: true,
@@ -1172,10 +1285,12 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             page,
             limit,
             totalPages: Math.ceil(total / limit),
-            data: payments
+            data: pageData,
+            tally: dailyTally
         });
+
     } catch (error: any) {
-        console.error("❌ Error fetching all payments:", error);
+        console.error("❌ Consolidated Payment Fetch Error:", error);
         return res.status(500).json({
             success: false,
             message: "Internal server error",
@@ -1195,37 +1310,46 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
             .sort({ timestamp: -1 })
             .toArray();
 
-        const Transaction = mongoose.model('Transaction');
-
-        // Extract all mobiles and orderIds
+        // Extract all mobiles, aadhar numbers and orderIds
         const mobiles = payments.map((p: any) =>
             p?.candidateDetails?.personal_details?.contact_info?.mobile
         ).filter(Boolean);
 
+        const aadhars = payments.map((p: any) =>
+            p?.candidateDetails?.personal_details?.basic_info?.aadhar_number
+        ).filter(Boolean);
+
         const orderIds = payments.map((p: any) => p.orderId).filter(Boolean);
 
-        // Fetch all matching candidates
+        // Fetch all matching candidates by phone or aadhar
         const candidates = await CandidateAdmission.find({
-            'personal_details.phone': { $in: mobiles }
+            $or: [
+                { 'personal_details.phone': { $in: mobiles } },
+                { 'personal_details.aadharNumber': { $in: aadhars } }
+            ]
         }).lean();
 
-        // Fetch matching Shipped transactions (to flag them in the UI)
-        const transactions = await Transaction.find({
-            orderNo: { $in: orderIds } // We fetch all matching from Excel to show actual status
-        }).lean() as any[];
+        const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
 
-        // Create lookup map (O(1) access)
+        // Fetch all matching Success transactions from CCAvenue Logs
+        const transactions = await ccCollection.find({
+            "data.order_id": { $in: orderIds }
+        }).toArray() as any[];
+
+        // Create lookup maps (O(1) access)
         const candidateMap = new Map();
+        const aadharMap = new Map();
         candidates.forEach((c: any) => {
-            candidateMap.set(c.personal_details.phone, c);
+            if (c.personal_details.phone) candidateMap.set(c.personal_details.phone, c);
+            if (c.personal_details.aadharNumber) aadharMap.set(c.personal_details.aadharNumber, c);
         });
 
         const transactionMap = new Map();
         transactions.forEach((t: any) => {
-            if (!transactionMap.has(t.orderNo)) {
-                transactionMap.set(t.orderNo, []);
+            if (!transactionMap.has(t.data.order_id)) {
+                transactionMap.set(t.data.order_id, []);
             }
-            transactionMap.get(t.orderNo).push(t);
+            transactionMap.get(t.data.order_id).push(t);
         });
 
         // Group enriched data by candidate (phone) for deduplication
@@ -1233,34 +1357,37 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
 
         for (const p of payments) {
             const phone = p?.candidateDetails?.personal_details?.contact_info?.mobile;
+            const aadhar = p?.candidateDetails?.personal_details?.basic_info?.aadhar_number;
             if (!phone) continue;
 
             const candidate = candidateMap.get(phone);
+            const aadharCandidate = aadhar ? aadharMap.get(aadhar) : null;
             const matchedTransactions = transactionMap.get(p.orderId) || [];
             let transaction = null;
 
             if (matchedTransactions.length > 0) {
                 // Priority logic for multiple transaction records for ONE orderId
-                transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped' && t.billTel === phone);
-                if (!transaction) transaction = matchedTransactions.find((t: any) => t.orderStatus === 'Shipped');
-                if (!transaction) transaction = matchedTransactions.find((t: any) => t.billTel === phone);
+                transaction = matchedTransactions.find((t: any) => t.data.order_status === 'Success' && t.data.billing_tel === phone);
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.data.order_status === 'Success');
+                if (!transaction) transaction = matchedTransactions.find((t: any) => t.data.billing_tel === phone);
                 if (!transaction) transaction = matchedTransactions[0];
             }
 
-            const is_shipped = transaction ? (transaction.orderStatus === 'Shipped') : false;
+            const is_shipped = transaction ? (transaction.data.order_status === 'Success') : false;
 
             const enrichedItem: any = {
                 ...p,
                 already_registered: !!candidate,
-                candidate_id: candidate?._id || null,
-                candidate_reg_number: candidate?.registration_number || null,
-                amount: transaction ? transaction.orderAmount : p.amount,
-                transaction_id: transaction ? transaction.orderNo : p.orderId,
-                payment_date: transaction ? transaction.orderDatetime : p.timestamp,
+                aadhar_duplicate: !!aadharCandidate,
+                candidate_id: candidate?._id || aadharCandidate?._id || null,
+                candidate_reg_number: candidate?.registration_number || aadharCandidate?.registration_number || null,
+                amount: transaction ? transaction.data.amount : p.amount,
+                transaction_id: transaction ? transaction.data.tracking_id : p.orderId,
+                payment_date: transaction ? transaction.data.trans_date : p.timestamp,
                 timestamp: p.timestamp, // Keep for sorting/deduplication
-                bank_ref_no: transaction ? transaction.orderBankRefNo : 'N/A',
+                bank_ref_no: transaction ? transaction.data.bank_ref_no : 'N/A',
                 is_shipped_in_excel: is_shipped,
-                actual_transaction_status: transaction ? transaction.orderStatus : 'Not Found in Excel'
+                actual_transaction_status: transaction ? transaction.data.order_status : 'Not Found in Logs'
             };
 
             // DEDUPLICATION: Group by phone number

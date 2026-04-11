@@ -5,6 +5,7 @@ import { SignupRequest, addMoreCandidateCoursesService } from "../services/candi
 import CandidateAdmission from "../models/candidate.model";
 import { createPaymentAuditLog } from "../services/auditlog.service";
 import mongoose from "mongoose";
+import TransactionTest from "../models/transaction.model";
 
 const router = Router();
 
@@ -42,8 +43,12 @@ router.post('/missed_save', async (req, res) => {
     }
 
     // 🔍 Check existing (IMPORTANT: use correct field)
+    const aadhar = candidateDetails?.personal_details?.basic_info?.aadhar_number;
     let existing = await CandidateAdmission.findOne({
-      "personal_details.phone": mobile
+      $or: [
+        { "personal_details.phone": mobile },
+        { "personal_details.aadharNumber": aadhar }
+      ]
     });
 
     // =============================
@@ -282,6 +287,19 @@ router.post('/unsuccessful_payment', async (req, res) => {
   }
 });
 
+router.get('/unsuccessful_payments', async (req, res) => {
+  try {
+    const data = await mongoose.connection.collection('unsuccessful_payment')
+      .find({})
+      .sort({ moved_at: -1 })
+      .toArray();
+    return res.status(200).json({ status: "success", data });
+  } catch (err: any) {
+    console.error("Get unsuccessful payments error:", err);
+    res.status(500).json({ message: "Error fetching unsuccessful payments", error: err.message });
+  }
+});
+
 // Move to refund collection
 router.post('/refund_payment', async (req, res) => {
   try {
@@ -316,6 +334,19 @@ router.post('/refund_payment', async (req, res) => {
   } catch (err: any) {
     console.error("Refund route error:", err);
     res.status(500).json({ message: "Error processing refund", error: err.message });
+  }
+});
+
+router.get('/refund_payments', async (req, res) => {
+  try {
+    const data = await mongoose.connection.collection('refund_payments')
+      .find({})
+      .sort({ moved_at: -1 })
+      .toArray();
+    return res.status(200).json({ status: "success", data });
+  } catch (err: any) {
+    console.error("Get refund payments error:", err);
+    res.status(500).json({ message: "Error fetching refund payments", error: err.message });
   }
 });
 
@@ -379,9 +410,10 @@ router.post('/bulk_reconcile', async (req, res) => {
           } else {
             if (existing) {
               // 🔍 Candidate exists, check if THIS specific order was also successful (Double Payment)
-              const currentTx = await mongoose.connection.collection('transactions').findOne({
-                orderNo: orderId,
-                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+              const currentTx = await ccCollection.findOne({
+                "data.order_id": orderId,
+                "data.order_status": "Success"
               });
 
               if (currentTx) {
@@ -391,11 +423,11 @@ router.post('/bulk_reconcile', async (req, res) => {
                   await mongoose.connection.collection('refund_payments').insertOne({
                     ...insertData,
                     status: "refund_initiated",
-                    ccavenue_ref: currentTx.ccavenueRef,
-                    bank_ref_no: currentTx.orderBankRefNo,
-                    refund_amount: currentTx.orderAmount || pending.amount || 0,
+                    ccavenue_ref: currentTx.data.tracking_id,
+                    bank_ref_no: currentTx.data.bank_ref_no,
+                    refund_amount: currentTx.data.amount || pending.amount || 0,
                     staff_id: staff_id,
-                    reason: `${currentTx.ccavenueRef}- ccavenue ref no order successfull status - ${currentTx.orderStatus} (Already Registered - Refund Needed)`,
+                    reason: `${currentTx.data.tracking_id}- ccavenue ref no order successfull status - ${currentTx.data.order_status} (Already Registered - Refund Needed)`,
                     moved_at: new Date()
                   });
                   await mongoose.connection.collection('payment_initiated').deleteOne({ _id: pending._id });
@@ -486,9 +518,10 @@ router.post('/bulk_reconcile', async (req, res) => {
               }
             } else {
               // 2. Extra duplicate orders -> check if they were also successful ('Shipped' or 'Successfull')
-              const extraTx = await mongoose.connection.collection('transactions').findOne({
-                orderNo: pending.orderId,
-                orderStatus: { $in: ['Shipped', 'Successfull', 'SUCCESSFULL', 'SHIPPED'] }
+              const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+              const extraTx = await ccCollection.findOne({
+                "data.order_id": pending.orderId,
+                "data.order_status": "Success"
               });
 
               if (extraTx) {
@@ -496,11 +529,11 @@ router.post('/bulk_reconcile', async (req, res) => {
                 await mongoose.connection.collection('refund_payments').insertOne({
                   ...insertData,
                   status: "refund_initiated",
-                  ccavenue_ref: extraTx.ccavenueRef,
-                  bank_ref_no: extraTx.orderBankRefNo,
-                  refund_amount: extraTx.orderAmount || pending.amount || 0,
+                  ccavenue_ref: extraTx.data.tracking_id,
+                  bank_ref_no: extraTx.data.bank_ref_no,
+                  refund_amount: extraTx.data.amount || pending.amount || 0,
                   staff_id: staff_id,
-                  reason: `${extraTx.ccavenueRef}- ccavenue ref no order successfull status - ${extraTx.orderStatus} (Duplicate)`,
+                  reason: `${extraTx.data.tracking_id}- ccavenue ref no order successfull status - ${extraTx.data.order_status} (Duplicate)`,
                   moved_at: new Date()
                 });
               } else {
@@ -553,6 +586,111 @@ router.post('/bulk_reconcile', async (req, res) => {
   } catch (err: any) {
     console.error("Bulk reconcile error:", err);
     res.status(500).json({ message: "Bulk reconciliation failed", error: err.message });
+  }
+});
+
+router.post('/upload_ccavenue_data', async (req, res) => {
+  try {
+    const payload = req.body;
+    // Assuming the payload can be a single object or an array of objects
+    const items = Array.isArray(payload) ? payload : [payload];
+
+    const transformedData = items.map((item: any) => {
+      // Helper to format date backward to "DD/MM/YYYY HH:mm:ss"
+      const formatTransDate = (dateStr: any) => {
+        if (!dateStr) return "";
+        let d;
+        if (typeof dateStr === 'object' && dateStr.$date) d = new Date(dateStr.$date);
+        else d = new Date(dateStr);
+        if (isNaN(d.getTime())) return "";
+        const pad = (n: number) => n < 10 ? '0' + n : n.toString();
+        return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      };
+
+      return {
+        source: "ccavenue/admission",
+        data: {
+          order_id: item.orderNo || "",
+          tracking_id: item.ccavenueRef || "",
+          bank_ref_no: item.orderBankRefNo || "",
+          order_status: item.orderStatus || "",
+          failure_message: item.orderBankResponse === "Transaction aborted by system." ? "" : "",
+          payment_mode: item.paymentMode || "",
+          card_name: item.cardName || "",
+          status_code: "null",
+          status_message: item.orderBankResponse || "",
+          currency: item.currency || "INR",
+          amount: item.orderAmount != null ? Number(item.orderAmount).toFixed(2) : "0.00",
+          billing_name: item.billName || "",
+          billing_address: item.billAddress || "",
+          billing_city: item.billCity || "",
+          billing_state: item.billState || "",
+          billing_zip: item.billZip || "",
+          billing_country: item.billCountry || "",
+          billing_tel: item.billTel || "",
+          billing_email: item.billEmail || "",
+          delivery_name: item.shipName || "",
+          delivery_address: item.shipAddress || "",
+          delivery_city: item.shipCity || "",
+          delivery_state: item.shipState || "",
+          delivery_zip: item.shipZip || "",
+          delivery_country: item.shipCountry || "",
+          delivery_tel: item.shipTel || "",
+          merchant_param1: item.merchantParam1 || "",
+          merchant_param2: item.merchantParam2 || "",
+          merchant_param3: item.merchantParam3 || "",
+          merchant_param4: item.merchantParam4 || "",
+          merchant_param5: item.merchantParam5 || "",
+          vault: item.isCorp || "N",
+          offer_type: "null",
+          offer_code: "null",
+          discount_value: item.discount != null ? Number(item.discount).toFixed(1) : "0.0",
+          mer_amount: item.grossAmount != null ? Number(item.grossAmount).toFixed(2) : "0.00",
+          eci_value: "null",
+          retry: "N",
+          response_code: "",
+          billing_notes: "",
+          trans_date: formatTransDate(item.orderDatetime),
+          bin_country: item.orderBinCountry || "",
+          auth_ref_num: item.orderBankArnNo || "",
+          trans_fee: "0.0",
+          service_tax: item.tax != null ? Number(item.tax).toFixed(1) : "0.0"
+        },
+        metadata: {
+          ip: item.customerIP || "",
+          method: "POST",
+          userAgent: "okhttp/3.5.0"
+        },
+        receivedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        __v: 0
+      };
+    });
+
+    const ccCollection = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
+
+    const operations = transformedData.map((doc: any) => ({
+      updateOne: {
+        filter: { "data.order_id": doc.data.order_id },
+        update: { $set: doc },
+        upsert: true
+      }
+    }));
+
+    if (operations.length > 0) {
+      await ccCollection.bulkWrite(operations);
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Successfully processed and uploaded ${items.length} records to ccavenue_admissions.`, 
+      data: transformedData 
+    });
+
+  } catch (error: any) {
+    console.error("Error processing CCAvenue data upload:", error);
+    res.status(500).json({ success: false, message: "Error processing upload", error: error.message });
   }
 });
 

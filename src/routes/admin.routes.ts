@@ -9,6 +9,7 @@ import {
   updateNotification,
   deleteNotification
 } from "../controllers/admin/notification.controller";
+import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
 
 
 const router = Router();
@@ -109,7 +110,9 @@ router.get(
         {
           $match: {
             "application_preferences.applications.program_code": programCode,
-            "application_preferences.applications.stream": stream
+            ...(String(stream).toLowerCase() !== 'both' && {
+              "application_preferences.applications.stream": stream
+            })
           }
         },
 
@@ -626,6 +629,10 @@ router.get("/adm_site/notification", getNotification);
 router.post("/adm_site/notification", createNotification);
 router.put("/adm_site/notification/:id", updateNotification);
 router.delete("/adm_site/notification/:id", deleteNotification);
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// ++++++++++++++++++++++++Backup Database+++++++++++++++++++++++++++++
+router.get("/database/backup", backupDatabaseJSON);
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 export default router;
