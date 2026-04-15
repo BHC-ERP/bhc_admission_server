@@ -12,6 +12,7 @@ import { sendMailService } from '../../services/mail.service';
 import { addMoreCandidateCoursesService } from '../../services/candidate.service';
 import { getCCAvenueConfig } from '../../config/ccavenue.config';
 import mongoose from 'mongoose';
+import { formatPaymentDate } from '../../utils/dateFormat';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string, workingKey: string): string {
@@ -1383,7 +1384,7 @@ export const getMissedPaymentsFull = async (req: Request, res: Response) => {
                 candidate_reg_number: candidate?.registration_number || aadharCandidate?.registration_number || null,
                 amount: transaction ? transaction.data.amount : p.amount,
                 transaction_id: transaction ? transaction.data.tracking_id : p.orderId,
-                payment_date: transaction ? transaction.data.trans_date : p.timestamp,
+                payment_date: transaction ? formatPaymentDate(transaction.data.trans_date) : formatPaymentDate(p.timestamp),
                 timestamp: p.timestamp, // Keep for sorting/deduplication
                 bank_ref_no: transaction ? transaction.data.bank_ref_no : 'N/A',
                 is_shipped_in_excel: is_shipped,
