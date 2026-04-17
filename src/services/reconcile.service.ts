@@ -5,6 +5,7 @@ import { createPaymentAuditLog } from './auditlog.service';
 import { addMoreCandidateCoursesService } from './candidate.service';
 import { candidateSignup } from '../controllers/auth/auth.controller';
 import { Request, Response } from 'express';
+import { formatPaymentDate } from '../utils/dateFormat';
 
 export interface ReconcileItem {
     orderId: string;
@@ -46,7 +47,7 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
                 await addMoreCandidateCoursesService(existing._id.toString(), selected_courses, {
                     amount_paid: amount ? parseFloat(amount.toString()) : 0,
                     transaction_id: transactionId,
-                    transaction_date: paymentDate || new Date().toISOString(),
+                    transaction_date: formatPaymentDate(paymentDate) || new Date().toISOString(),
                     payment_method: "ccavenue_missed"
                 });
 
@@ -59,7 +60,7 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
                         status: "Success",
                         transaction_id: transactionId,
                         bank_ref_no: bankRefNo || null,
-                        transaction_date: paymentDate || new Date().toISOString(),
+                        transaction_date: formatPaymentDate(paymentDate) || new Date().toISOString(),
                         is_add_more: true
                     },
                     step_completed: candidateDetails?.step_completed
@@ -116,7 +117,7 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
                         amount_paid: amount,
                         status: "success",
                         transaction_id: transactionId,
-                        transaction_date: paymentDate || new Date(),
+                        transaction_date: formatPaymentDate(paymentDate) || new Date(),
                         bank_ref_no: bankRefNo,
                     }
                 };
@@ -130,7 +131,7 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
                         status: "Success",
                         transaction_id: transactionId,
                         bank_ref_no: bankRefNo || null,
-                        transaction_date: paymentDate || new Date().toISOString()
+                        transaction_date: formatPaymentDate(paymentDate) || new Date().toISOString()
                     },
                     step_completed: candidateDetails?.step_completed
                 });
