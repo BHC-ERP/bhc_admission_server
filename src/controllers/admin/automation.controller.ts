@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import CandidateAdmission from '../../models/candidate.model';
 import { reconcileSingleOrder, ReconcileItem } from '../../services/reconcile.service';
+import { formatPaymentDate } from '../../utils/dateFormat';
 
 let automationInterval: NodeJS.Timeout | null = null;
 let isAutomationRunning = false;
@@ -64,7 +65,7 @@ export const performFullAutoReconciliation = async () => {
                 candidateDetails: p.candidateDetails,
                 amount: transaction.data.amount || p.amount,
                 transactionId: transaction.data.tracking_id || p.orderId,
-                paymentDate: transaction.data.trans_date || p.timestamp,
+                paymentDate: formatPaymentDate(transaction.data.trans_date) || p.timestamp,
                 bankRefNo: transaction.data.bank_ref_no,
                 actualStatus: transaction.data.order_status
             };
