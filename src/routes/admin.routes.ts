@@ -121,6 +121,7 @@ router.get(
             registration_number: 1,
             personal_details: 1,
             academic_background: 1,
+            category_and_facilities: 1,
             documents: 1,
             applications: "$application_preferences.applications"
           }
