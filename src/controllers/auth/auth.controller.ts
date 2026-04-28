@@ -345,7 +345,8 @@ export const candidateSignup = async (
         } else {
             // Fallback calculation
             const isFreeCommunity = freeCommunities.includes(community);
-            const perApplicationAmount = isFreeCommunity
+            const isNRI = personal_details.basic_info.is_nri;
+            const perApplicationAmount = isFreeCommunity || isNRI
                 ? 0
                 : application_type === "UG"
                     ? 100
@@ -361,8 +362,8 @@ export const candidateSignup = async (
             });
         }
 
-        const payment_status = total_amount === 0 ? "exempted" :
-            (payment_details?.status === "success" ? "success" : (payment_details?.status === "exempted" ? "exempted" : "pending"));
+        const payment_status = total_amount === 0 ? "success" :
+            (payment_details?.status === "success" ? "success" : (payment_details?.status === "success" ? "success" : "pending"));
 
         console.log("8. Payment status determined:", { total_amount, payment_status });
 

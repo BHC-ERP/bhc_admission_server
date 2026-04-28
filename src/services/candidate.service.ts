@@ -116,7 +116,7 @@ export const createCandidateService = async (
                 stream: program_streams[i],
                 status: "Draft",
                 preference_order: i + 1,
-                transaction_id: payment_details?.transaction_id
+                transaction_id: payment_details?.transaction_id,
             });
         }
 
