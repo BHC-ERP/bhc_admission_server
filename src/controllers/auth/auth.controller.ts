@@ -51,6 +51,7 @@ interface BasicInfo {
     aadhar_number?: string;
     blood_group: string;
     passport_number?: string;
+    country_of_origin?: string;
 }
 
 interface AddressDetail {
@@ -425,6 +426,7 @@ export const candidateSignup = async (
                 dioceseState: bi.dioceseState,
                 caste: bi.caste,
                 passportNumber: bi.passport_number,
+                countryOfOrigin: bi.country_of_origin,
                 differentlyAbled: bi.is_differently_abled,
                 differentlyAbledType: bi.disability_type,
                 differentlyAbledPercentage: bi.disability_percentage,
