@@ -51,6 +51,7 @@ interface BasicInfo {
     aadhar_number?: string;
     blood_group: string;
     passport_number?: string;
+    country_of_origin?: string;
 }
 
 interface AddressDetail {
@@ -224,11 +225,15 @@ export const candidateSignup = async (
         // DEBUG: Check both mobile and email for duplicates
         console.log("3. Checking duplicates for:", { mobile, email });
 
+        const aadharNumber = personal_details?.basic_info?.aadhar_number;
+        const orConditions: any[] = [{ "personal_details.phone": mobile }];
+
+        if (aadharNumber && aadharNumber.trim() !== "") {
+            orConditions.push({ "personal_details.aadharNumber": aadharNumber });
+        }
+
         const existing = await CandidateAdmission.findOne({
-            $or: [
-                { "personal_details.phone": mobile },
-                { "personal_details.aadharNumber": personal_details?.basic_info?.aadhar_number }
-            ]
+            $or: orConditions
         });
 
         if (existing) {
@@ -345,7 +350,8 @@ export const candidateSignup = async (
         } else {
             // Fallback calculation
             const isFreeCommunity = freeCommunities.includes(community);
-            const perApplicationAmount = isFreeCommunity
+            const isNRI = personal_details.basic_info.is_nri;
+            const perApplicationAmount = isFreeCommunity || isNRI
                 ? 0
                 : application_type === "UG"
                     ? 100
@@ -361,8 +367,8 @@ export const candidateSignup = async (
             });
         }
 
-        const payment_status = total_amount === 0 ? "exempted" :
-            (payment_details?.status === "success" ? "success" : (payment_details?.status === "exempted" ? "exempted" : "pending"));
+        const payment_status = total_amount === 0 ? "success" :
+            (payment_details?.status === "success" ? "success" : (payment_details?.status === "success" ? "success" : "pending"));
 
         console.log("8. Payment status determined:", { total_amount, payment_status });
 
@@ -424,6 +430,7 @@ export const candidateSignup = async (
                 dioceseState: bi.dioceseState,
                 caste: bi.caste,
                 passportNumber: bi.passport_number,
+                countryOfOrigin: bi.country_of_origin,
                 differentlyAbled: bi.is_differently_abled,
                 differentlyAbledType: bi.disability_type,
                 differentlyAbledPercentage: bi.disability_percentage,
