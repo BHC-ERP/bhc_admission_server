@@ -632,6 +632,97 @@ router.put("/adm_site/notification/:id", updateNotification);
 router.delete("/adm_site/notification/:id", deleteNotification);
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// ++++++++++++++++++++++++Remove Selection++++++++++++++++++++++++++++
+/**
+ * @route DELETE /api/admin/candidates/selection/:candidateId
+ * @desc Remove candidate selection (revert to Applied)
+ * @access HOD only
+ */
+router.delete('/candidates/selection/:candidateId', async (req, res) => {
+  console.log(`DELETE /api/admin/candidates/selection/${req.params.candidateId} hit`);
+  try {
+    const { candidateId } = req.params;
+    const { program_code, user } = req.body;
+
+    if (!program_code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Program code is required'
+      });
+    }
+
+    if (!user || !user.staff_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User information is required'
+      });
+    }
+
+    const candidate = await CandidateAdmission.findById(candidateId);
+
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    if (!candidate.application_preferences || !candidate.application_preferences.applications) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate has no applications'
+      });
+    }
+
+    const applicationIndex = candidate.application_preferences.applications.findIndex(
+      app => app.program_code === program_code
+    );
+
+    if (applicationIndex === -1) {
+      return res.status(400).json({
+        success: false,
+        message: `Program code ${program_code} not found in candidate applications`
+      });
+    }
+
+    const application = candidate.application_preferences.applications[applicationIndex];
+
+    // Clear selection history completely
+    if (application.selected) {
+      application.selected.splice(0);
+    }
+
+    // Revert status and clear selection fields
+    application.status = 'Applied';
+    
+    // Clear selection fields if they exist (even if not in strict schema)
+    const appAny = application as any;
+    appAny.staff_id = undefined;
+    appAny.staff_name = undefined;
+    appAny.staff_department = undefined;
+    appAny.selection_date = undefined;
+    appAny.selection_remarks = undefined;
+    appAny.interview_requested = undefined;
+    appAny.interview_status = undefined;
+
+    // Save the changes
+    await candidate.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Selection removed successfully and candidate reverted to Applied status'
+    });
+
+  } catch (error) {
+    console.error('Error removing selection:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while removing selection'
+    });
+  }
+});
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 // ++++++++++++++++++++++++Backup Database+++++++++++++++++++++++++++++
 router.get("/database/backup", backupDatabaseJSON);
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
