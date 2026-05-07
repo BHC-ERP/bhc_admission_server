@@ -450,6 +450,24 @@ const CandidateSchema = new mongoose.Schema({
                 admission_date: Date
             },
             transaction_id: String,
+            sms_history: [{
+                sent_by: {
+                    staff_id: String,
+                    staff_name: String,
+                    department: String,
+                    designation: String
+                },
+                sent_at: {
+                    type: Date,
+                    default: Date.now
+                },
+                template_identifier: String,
+                dynamic_values: [String],
+                interview_date: Date,
+                last_date: Date,
+                message: String,
+                _id: false
+            }],
             _id: false
         }]
     },

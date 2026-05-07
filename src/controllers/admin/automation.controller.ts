@@ -62,6 +62,7 @@ export const performFullAutoReconciliation = async () => {
                 orderId: p.orderId,
                 isShipped: true,
                 isAddMore: !!p.isAddMore,
+                candidateId: p.candidateId, // Pass candidateId for Add More cases
                 candidateDetails: p.candidateDetails,
                 amount: transaction.data.amount || p.amount,
                 transactionId: transaction.data.tracking_id || p.orderId,

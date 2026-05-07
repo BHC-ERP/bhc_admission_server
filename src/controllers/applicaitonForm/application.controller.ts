@@ -565,6 +565,57 @@ export const getAllVerifySelectionApplications = async (req: Request, res: Respo
     }
 };
 
+export const getAllSMSSentApplications = async (req: Request, res: Response) => {
+    try {
+        const data = await CandidateAdmission.aggregate([
+            {
+                $match: {
+                    "application_preferences.applications.status": "SMS_SENT"
+                }
+            },
+            {
+                $project: {
+                    registration_number: 1,
+                    personal_details: 1,
+                    academic_background: 1,
+                    appliedProgrammeType: 1,
+                    admission_status: 1,
+                    applications: {
+                        $filter: {
+                            input: "$application_preferences.applications",
+                            as: "app",
+                            cond: { $eq: ["$$app.status", "SMS_SENT"] }
+                        }
+                    },
+                    metadata: 1
+                }
+            },
+            { $sort: { "metadata.submitted_at": -1 } }
+        ]);
+
+        if (!data || data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No applications found with SMS_SENT status"
+            });
+        }
+
+        return res.json({
+            success: true,
+            count: data.length,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching SMS_SENT applications:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
+
 // GET /all (Admin: Get all applications)
 export const getAllApplications = async (req: Request, res: Response): Promise<Response> => {
     try {

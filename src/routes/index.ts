@@ -11,6 +11,7 @@ import paymentRoutes from './payment.routes'
 import visitRoutes from "./visitor.routes";
 import transactionRoutes from "./transaction.routes";
 import automationRoutes from "./automation.routes";
+import smsRoutes from "./sms.routes";
 
 const router = Router();
 
@@ -26,4 +27,5 @@ router.use("/docs/upload", uploadRoutes);
 router.use("/visitor", visitorRoutes);
 router.use("/transactions", transactionRoutes);
 router.use("/automation", automationRoutes);
+router.use("/sms-templates", smsRoutes);
 export default router;
