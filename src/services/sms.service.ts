@@ -22,5 +22,6 @@ export const sendSMSService = async (
         console.log("📩 SMS Sent:", response.data);
     } catch (error: any) {
         console.error("❌ SMS Failed:", error.message);
+        throw new Error(error.message);
     }
 };
