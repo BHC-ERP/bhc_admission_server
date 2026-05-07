@@ -679,6 +679,12 @@ export const candidateLogin = async (
             registration_number: candidate.registration_number,
             role: "candidate",
             payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : "pending",
+            userData: {
+                basic_info: {
+                    is_nri: candidate.personal_details?.nationality === "Outside Indian"
+                },
+                address: candidate.address
+            }
         };
 
         const token = signToken(user);
