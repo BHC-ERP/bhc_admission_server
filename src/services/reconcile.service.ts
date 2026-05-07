@@ -11,6 +11,7 @@ export interface ReconcileItem {
     orderId: string;
     isShipped: boolean;
     isAddMore: boolean;
+    candidateId?: string; // Optional ID for direct lookup
     candidateDetails: any;
     amount: number;
     transactionId: string;
@@ -20,9 +21,11 @@ export interface ReconcileItem {
 }
 
 export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string = 'System_Auto') => {
-    const { orderId, isShipped, isAddMore, candidateDetails, amount, transactionId, paymentDate, bankRefNo, actualStatus } = item;
+    const { orderId, isShipped, isAddMore, candidateId, candidateDetails, amount, transactionId, paymentDate, bankRefNo, actualStatus } = item;
 
     try {
+        console.log(`[Reconcile] Processing Order: ${orderId} (isAddMore: ${isAddMore})`);
+
         // Skip if status is 'Not Found in Excel' or 'Awaited'
         if (actualStatus === 'Not Found in Excel' || actualStatus === 'Awaited') {
             return { orderId, status: "Skipped", message: `Status is ${actualStatus}` };
@@ -30,20 +33,44 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
 
         if (isShipped) {
             const mobile = candidateDetails?.personal_details?.contact_info?.mobile;
-            if (!mobile) throw new Error("Mobile required");
-
             const aadhar = candidateDetails?.personal_details?.basic_info?.aadhar_number;
-            let existing = await CandidateAdmission.findOne({ 
-                $or: [
-                    { "personal_details.phone": mobile },
-                    { "personal_details.aadharNumber": aadhar }
-                ]
-             });
+
+            if (!mobile && !candidateId) throw new Error("Mobile or CandidateID required for reconciliation");
+
+            let existing = null;
+
+            // Priority 1: Direct Candidate ID (for Add More)
+            if (candidateId) {
+                existing = await CandidateAdmission.findById(candidateId);
+            }
+
+            // Priority 2: Mobile / Aadhar (for Registration or Fallback)
+            if (!existing && mobile) {
+                const query: any = { "personal_details.phone": mobile };
+                if (aadhar) {
+                    existing = await CandidateAdmission.findOne({
+                        $or: [
+                            query,
+                            { "personal_details.aadharNumber": aadhar }
+                        ]
+                    });
+                } else {
+                    existing = await CandidateAdmission.findOne(query);
+                }
+            }
 
             if (isAddMore) {
-                if (!existing) throw new Error("Candidate not found for Add More");
+                if (!existing) {
+                    console.error(`[Reconcile] Add More Failed: Candidate not found for Order ${orderId} (Mobile: ${mobile}, ID: ${candidateId})`);
+                    throw new Error("Candidate not found for Add More");
+                }
 
                 const selected_courses = candidateDetails?.selected_courses;
+                if (!selected_courses || selected_courses.length === 0) {
+                    console.warn(`[Reconcile] Add More Warning: No courses found in candidateDetails for Order ${orderId}`);
+                }
+
+                console.log(`[Reconcile] Adding courses to Candidate: ${existing._id} for Order: ${orderId}`);
                 await addMoreCandidateCoursesService(existing._id.toString(), selected_courses, {
                     amount_paid: amount ? parseFloat(amount.toString()) : 0,
                     transaction_id: transactionId,
@@ -65,6 +92,7 @@ export const reconcileSingleOrder = async (item: ReconcileItem, staff_id: string
                     },
                     step_completed: candidateDetails?.step_completed
                 });
+                console.log(`[Reconcile] Add More Success for Order: ${orderId}`);
             } else {
                 if (existing) {
                     // Double Payment / Duplicate check
