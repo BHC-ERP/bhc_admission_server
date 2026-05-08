@@ -13,6 +13,7 @@ import { addMoreCandidateCoursesService } from '../../services/candidate.service
 import { getCCAvenueConfig } from '../../config/ccavenue.config';
 import mongoose from 'mongoose';
 import { formatPaymentDate } from '../../utils/dateFormat';
+import axios from 'axios';
 
 // Helper to decrypt CCAvenue response
 function decryptCCAvenueResponse(encResp: string, workingKey: string): string {
@@ -427,6 +428,99 @@ export const initiateAddMoreCoursesPayment = async (req: Request, res: Response)
         return res.status(500).json({
             message: "Server error during payment initiation",
             error: err instanceof Error ? err.message : "Unknown error"
+        });
+    }
+};
+
+// Initiate Admission Fee payment (Proxies to bhc-fees-server)
+export const initiateAdmissionFeePayment = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        console.log("=== Admission Fee Payment Initiation Started ===");
+        const { application_number, candidateId } = req.body;
+
+        if (!application_number || !candidateId) {
+            return res.status(400).json({ message: "Application number and Candidate ID are required" });
+        }
+
+        const candidate = await CandidateAdmission.findById(candidateId).lean();
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found" });
+        }
+
+        // Fetch the specific fee record from admission2026.candidate_fees_master
+        const db = mongoose.connection.useDb('admission2026');
+        const feeRecord = await db.collection('candidate_fees_master').findOne({
+            application_number: Number(application_number)
+        });
+
+        if (!feeRecord) {
+            return res.status(404).json({ message: "Admission fee record not found for this application." });
+        }
+
+        // Strict eligibility: must be enabled AND not expired (if expiry set)
+        if (!feeRecord.is_payment_enabled) {
+            return res.status(403).json({ message: "Admission fee payment is not enabled for this application." });
+        }
+
+        if (feeRecord.payment_expiry_date) {
+            const expiry = new Date(feeRecord.payment_expiry_date);
+            if (new Date() > expiry) {
+                return res.status(403).json({ message: "Admission fee payment link has expired." });
+            }
+        }
+
+        // Check if already paid
+        if (['SUCCESS', 'PAID', 'ONLINE_PAID', 'SWIPE_PAID'].includes(feeRecord.status)) {
+            return res.status(400).json({ message: "Admission fee for this application has already been paid." });
+        }
+
+        // Generate unique order ID
+        const orderId = `BHC-ADMN-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+        // Call BHC Fees Server (running on 5026)
+        const FEES_SERVER_URL = process.env.FEES_SERVER_URL || 'http://localhost:5000';
+
+        const payload = {
+            feeType: 'admission_fees',
+            amount: feeRecord.total_amount,
+            orderId: orderId,
+            studentId: candidate.registration_number,
+            billingName: candidate.personal_details?.fullName,
+            billingEmail: candidate.personal_details?.email,
+            billingTel: candidate.personal_details?.phone,
+            billingAddress: [
+                candidate.address?.present_address?.door_no,
+                candidate.address?.present_address?.street,
+                candidate.address?.present_address?.village_town,
+                candidate.address?.present_address?.district,
+                candidate.address?.present_address?.state,
+                candidate.address?.present_address?.country
+            ].filter(Boolean).join(", "),
+            billingCity: candidate.address?.present_address?.district,
+            billingState: candidate.address?.present_address?.state,
+            billingZip: candidate.address?.present_address?.pincode,
+            billingCountry: candidate.address?.present_address?.country,
+            academicYear: candidate.academic_year,
+            applicationNumber: application_number,
+            registerNumber: candidate.registration_number,
+            stream: feeRecord.stream,
+            isSplit: feeRecord.stream === 'Aided',
+            aided_fees: feeRecord.stream === 'Aided' ? feeRecord.fees.aided_fees : [],
+            aided_management_fees: feeRecord.stream === 'Aided' ? feeRecord.fees.aided_management_fees : []
+        };
+
+        const response = await axios.post(`${FEES_SERVER_URL}/payments/initiate`, payload);
+
+        return res.status(200).json({
+            ...response.data,
+            ccavenueUrl: response.data.url
+        });
+
+    } catch (err: any) {
+        console.error("❌ Admission fee payment initiation error:", err.response?.data || err.message);
+        return res.status(500).json({
+            message: err.response?.data?.message || "Server error during admission fee initiation",
+            error: err.message
         });
     }
 };
@@ -1147,17 +1241,17 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             (c.payment || []).forEach((p: any) => {
                 const status = (p.status || '').toLowerCase();
                 const amount = Number(p.amount) || 0;
-                
+
                 // Explicitly skip exempted or zero-amount entries
                 if (status === 'success' && p.transaction_id && amount > 0) {
                     const txId = String(p.transaction_id).trim(); // tracking id
                     const orderId = String((p as any).gateway_response?.order_id || (p as any).order_id || '').trim();
                     const bankRef = String(p.bank_ref_no || '----').trim();
                     const combinedKey = `${txId}_${orderId}`;
-                    
+
                     if (!seenCombinedKeys.has(combinedKey)) {
                         seenCombinedKeys.add(combinedKey);
-                        
+
                         transactionMap.set(txId, {
                             _id: `${c._id}_${txId}`,
                             source: 'candidate_admission',
@@ -1205,7 +1299,7 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             const bankRef = String(r.bank_ref_no || '----').trim();
             const orderId = String(r.orderId || r.orderNo || '').trim();
             const combinedKey = `${txId}_${orderId}`;
-            
+
             // Deduplication: Both tracking ID AND order ID must match together
             const isDuplicate = (txId !== '' && orderId !== '' && seenCombinedKeys.has(combinedKey));
 
@@ -1238,7 +1332,7 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
 
         // 3. Sorting and Tallies
         const unified = Array.from(transactionMap.values());
-        
+
         // Sort by Date (Descending)
         unified.sort((a: any, b: any) => {
             const dateA = new Date(a.payment_details?.gateway_response?.trans_date || a.createdAt).getTime();
@@ -1259,7 +1353,7 @@ export const getAllPayments = async (req: Request, res: Response): Promise<Respo
             }
             const stats = tallyMap.get(dateStr);
             const status = (item.payment_details?.status || "").toLowerCase();
-            
+
             const amountValue = Number(item.payment_details?.amount_paid) || 0;
             if (status === 'success') {
                 if (item.source === 'transaction_tests') {

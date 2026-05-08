@@ -1,15 +1,14 @@
 import { Router } from "express";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { candidateSignup } from "../controllers/auth/auth.controller";
-import { SignupRequest, addMoreCandidateCoursesService } from "../services/candidate.service";
+import { addMoreCandidateCoursesService } from "../services/candidate.service";
 import CandidateAdmission from "../models/candidate.model";
 import { createPaymentAuditLog } from "../services/auditlog.service";
 import mongoose from "mongoose";
-import TransactionTest from "../models/transaction.model";
 
 const router = Router();
 
-router.get("/dashboard", authMiddleware, (req, res) => {
+router.get("/dashboard", authMiddleware, (req: any, res) => {
   res.json({
     message: "Welcome to dashboard",
     user: req.user,
@@ -682,10 +681,10 @@ router.post('/upload_ccavenue_data', async (req, res) => {
       await ccCollection.bulkWrite(operations);
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: `Successfully processed and uploaded ${items.length} records to ccavenue_admissions.`, 
-      data: transformedData 
+    res.status(200).json({
+      success: true,
+      message: `Successfully processed and uploaded ${items.length} records to ccavenue_admissions.`,
+      data: transformedData
     });
 
   } catch (error: any) {
