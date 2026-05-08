@@ -10,6 +10,7 @@ import {
     handleCCAvenueResponse,
     handleDecryptionData,
     initiateAddMoreCoursesPayment,
+    initiateAdmissionFeePayment,
     initiateCCAvenuePayment,
     testing_failurStatusResponse
 } from '../controllers/payments/payment.controller';
@@ -22,6 +23,7 @@ router.post('/payment/direct-save', directSaveApplication);
 router.post('/payment/ccavenue/initiate', initiateCCAvenuePayment);
 //Paid application add more courses
 router.post('/payment/add-more-courses/initiate', initiateAddMoreCoursesPayment);
+router.post('/payment/admission-fee/initiate', initiateAdmissionFeePayment);
 
 router.post('/payment/ccavenue/response', handleCCAvenueResponse);
 router.post('/payment/ccavenue/cancel', handleCCAvenueCancel);

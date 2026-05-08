@@ -430,6 +430,40 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
 
         const overallCompletionPercentage = Math.round((completedRequirements / totalRequirements) * 100);
 
+        // --- REDESIGNED: Fetch Admission Fee Records from admission2026 ---
+        const db = mongoose.connection.useDb('admission2026');
+        const appNumbers = candidate.application_preferences?.applications?.map((a: any) => a.application_number) || [];
+        
+        const rawRecords = await db.collection('candidate_fees_master').find({ 
+            application_number: { $in: appNumbers }
+        }).toArray();
+
+        // Apply strict eligibility rules: is_payment_enabled=true and expiry check if not null
+        const now = new Date();
+        const admissionFees = rawRecords.map(f => {
+            const isPaid = ['SUCCESS', 'PAID', 'ONLINE_PAID', 'SWIPE_PAID'].includes(f.status);
+            let isEligible = f.is_payment_enabled === true && !isPaid;
+            
+            // If expiry date exists, check it. If null, ignore (as per user request)
+            if (isEligible && f.payment_expiry_date) {
+                const expiry = new Date(f.payment_expiry_date);
+                if (now > expiry) isEligible = false;
+            }
+
+            return {
+                application_number: f.application_number,
+                program_code: f.program_code,
+                stream: f.stream,
+                total_amount: f.total_amount,
+                status: f.status,
+                is_payment_enabled: isEligible, // Final resolved eligibility
+                payment_expiry_date: f.payment_expiry_date,
+                fees: f.fees
+            };
+        });
+
+        console.log(`[DEBUG] Redesigned lookup found ${admissionFees.length} records. Eligible count: ${admissionFees.filter(f => f.is_payment_enabled).length}`);
+
         return res.json({
             registration_number: candidate.registration_number,
             personal_details: candidate.personal_details,
@@ -437,6 +471,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             payment_status: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1].status : 'pending',
             payment_details: candidate.payment && candidate.payment.length > 0 ? candidate.payment[candidate.payment.length - 1] : {},
             all_payments: candidate.payment ? candidate.payment.filter((p: any) => p.status === 'success' || p.status === 'captured') : [],
+            admission_fees: admissionFees, // Expose admission fees to frontend
             documents: {
                 required_documents: candidate.documents?.required_documents || [],
                 uploaded_count: documentsUploaded,
@@ -490,7 +525,7 @@ export const getAllHODSelectionApplications = async (req: Request, res: Response
         // Find all candidates that have at least one application with status "HOD_SELECTION"
         const data = await CandidateAdmission.find({
             "application_preferences.applications": {
-                $elemMatch: { status: { $in: ["HOD_SELECTION", "VERIFIED"] } }
+                $elemMatch: { status: { $in: ["VERIFIED"] } }
             }
         });
 
