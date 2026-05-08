@@ -505,8 +505,9 @@ export const initiateAdmissionFeePayment = async (req: Request, res: Response): 
             registerNumber: candidate.registration_number,
             stream: feeRecord.stream,
             isSplit: feeRecord.stream === 'Aided',
-            aided_fees: feeRecord.stream === 'Aided' ? feeRecord.fees.aided_fees : [],
-            aided_management_fees: feeRecord.stream === 'Aided' ? feeRecord.fees.aided_management_fees : []
+            aided_fees: feeRecord.fees?.aided_fees || [],
+            aided_management_fees: feeRecord.fees?.aided_management_fees || [],
+            management_fees: feeRecord.fees?.management_fees || []
         };
 
         const response = await axios.post(`${FEES_SERVER_URL}/payments/initiate`, payload);
