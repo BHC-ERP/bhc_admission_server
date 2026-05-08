@@ -32,7 +32,7 @@ const CandidateSchema = new mongoose.Schema({
             type: String,
             enum: ['Draft', 'Applied', 'HOD_SELECTION',
                 'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
-                'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL'
+                'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL', 'ADMITTED'
             ],
             default: 'Draft'
         },
@@ -413,7 +413,7 @@ const CandidateSchema = new mongoose.Schema({
                 type: String,
                 enum: ['Draft', 'Applied', 'HOD_SELECTION',
                     'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
-                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
+                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
             },
             selected: [{
                 selected_by: {

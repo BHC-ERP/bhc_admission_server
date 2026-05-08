@@ -15,6 +15,43 @@ import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
 const router = Router();
 
 /**
+ * @route GET /api/admin/verification/list
+ * @desc Get all candidates with applications in HOD_SELECTION or HOD_SELECTION_INTERVIEW status
+ * @access Admin/Verifier
+ */
+router.get("/verification/list", async (req: Request, res: Response) => {
+  try {
+    const { from_date, to_date } = req.query;
+    
+    const matchConditions: any = {
+      "application_preferences.applications.status": {
+        $in: ["HOD_SELECTION", "HOD_SELECTION_INTERVIEW", "VERIFIED"]
+      }
+    };
+
+    if (from_date || to_date) {
+      matchConditions["metadata.submitted_at"] = {};
+      if (from_date) matchConditions["metadata.submitted_at"]["$gte"] = new Date(from_date as string);
+      if (to_date) matchConditions["metadata.submitted_at"]["$lte"] = new Date(to_date as string);
+    }
+
+    const applications = await CandidateAdmission.find(matchConditions).sort({ "metadata.submitted_at": -1 });
+
+    return res.status(200).json({
+      success: true,
+      total: applications.length,
+      data: applications
+    });
+  } catch (error) {
+    console.error("Error fetching verification list:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error"
+    });
+  }
+});
+
+/**
  * GET Applications by Program Code
  * Example:
  * /api/applications/UG-BSC-ND
@@ -180,14 +217,17 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       status,
       remarks,
       program_code,
+      application_number,
       interviewDate,
-      user
+      user,
+      stream,
+      shift
     } = req.body;
 
-    if (!program_code) {
+    if (!program_code && !application_number) {
       return res.status(400).json({
         success: false,
-        message: 'Program code is required'
+        message: 'Program code or Application number is required'
       });
     }
 
@@ -250,13 +290,17 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     }
 
     const applicationIndex = candidate.application_preferences.applications.findIndex(
-      app => app.program_code === program_code
+      app => application_number 
+        ? app.application_number === Number(application_number)
+        : app.program_code === program_code
     );
 
     if (applicationIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: `Program code ${program_code} not found`
+        message: application_number 
+          ? `Application number ${application_number} not found`
+          : `Program code ${program_code} not found`
       });
     }
 
@@ -264,9 +308,17 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
 
     const originalStream = targetApplication.stream;
 
-    const admissionStream = originalStream;
+    // Check if user is HOD
+    const isHOD = user.designation?.toLowerCase().includes('hod') || 
+                  (user.role && (Array.isArray(user.role) ? user.role : [user.role]).some((r: any) => r.toLowerCase().includes('hod')));
 
-    const isStreamChanged = false;
+    let admissionStream = originalStream;
+    let isStreamChanged = false;
+
+    if (isHOD && stream && stream !== originalStream) {
+      admissionStream = stream;
+      isStreamChanged = true;
+    }
 
     const updatedApplications = candidate.application_preferences.applications.map((app, index) => {
 
@@ -277,6 +329,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
 
           status: status,
           stream: admissionStream,
+          shift: shift || app.shift,
           original_stream: isStreamChanged ? originalStream : undefined,
 
           staff_id: user.staff_id,
@@ -294,7 +347,9 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
                 staff_id: user.staff_id,
                 staff_name: user.name,
                 department: user.department_code || user.department,
-                designation: user.designation
+                designation: user.designation,
+                selected_stream: admissionStream,
+                selected_shift: shift || app.shift
               },
               selection_date: currentDate,
               selection_remarks: remarks || '',
@@ -347,6 +402,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       {
         $set: {
           'application_preferences.applications': updatedApplications,
+          'admission_status.current': status,
           updatedAt: currentDate
         }
       },
@@ -604,15 +660,14 @@ router.delete("/adm_site/notification/:id", deleteNotification);
  * @access HOD only
  */
 router.delete('/candidates/selection/:candidateId', async (req, res) => {
-  console.log(`DELETE /api/admin/candidates/selection/${req.params.candidateId} hit`);
   try {
     const { candidateId } = req.params;
-    const { program_code, user } = req.body;
+    const { program_code, application_number, user } = req.body;
 
-    if (!program_code) {
+    if (!program_code && !application_number) {
       return res.status(400).json({
         success: false,
-        message: 'Program code is required'
+        message: 'Program code or Application number is required'
       });
     }
 
@@ -624,7 +679,6 @@ router.delete('/candidates/selection/:candidateId', async (req, res) => {
     }
 
     const candidate = await CandidateAdmission.findById(candidateId);
-
     if (!candidate) {
       return res.status(404).json({
         success: false,
@@ -632,57 +686,72 @@ router.delete('/candidates/selection/:candidateId', async (req, res) => {
       });
     }
 
-    if (!candidate.application_preferences || !candidate.application_preferences.applications) {
-      return res.status(400).json({
-        success: false,
-        message: 'Candidate has no applications'
-      });
-    }
-
-    const applicationIndex = candidate.application_preferences.applications.findIndex(
-      app => app.program_code === program_code
+    const applications = candidate.application_preferences?.applications || [];
+    const applicationIndex = applications.findIndex(
+      app => application_number 
+        ? app.application_number === Number(application_number)
+        : app.program_code === program_code
     );
 
     if (applicationIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: `Program code ${program_code} not found in candidate applications`
+        message: application_number 
+          ? `Application number ${application_number} not found`
+          : `Program code ${program_code} not found`
       });
     }
 
-    const application = candidate.application_preferences.applications[applicationIndex];
+    // Role-based status logic
+    const userRole = user.role;
+    const isVerifier = (Array.isArray(userRole) ? userRole : [userRole]).some((r: any) => String(r).toLowerCase().includes('adm:verify'));
+    const targetStatus = isVerifier ? 'HOD_SELECTION' : 'Applied';
 
-    // Clear selection history completely
-    if (application.selected) {
-      application.selected.splice(0);
+    // Build update object using positional operator if possible, but simpler to use findByIdAndUpdate with $set on the index
+    const updatePath = `application_preferences.applications.${applicationIndex}`;
+    const updateData: any = {
+      $set: {
+        [`${updatePath}.status`]: targetStatus,
+        'admission_status.current': targetStatus,
+        'updatedAt': new Date()
+      },
+      $unset: {
+        [`${updatePath}.staff_id`]: 1,
+        [`${updatePath}.staff_name`]: 1,
+        [`${updatePath}.staff_department`]: 1,
+        [`${updatePath}.selection_date`]: 1,
+        [`${updatePath}.selection_remarks`]: 1,
+        [`${updatePath}.interview_requested`]: 1,
+        [`${updatePath}.interview_status`]: 1
+      }
+    };
+
+    // If HOD (not verifier), clear selection history
+    if (!isVerifier) {
+      updateData.$set[`${updatePath}.selected`] = [];
     }
 
-    // Revert status and clear selection fields
-    application.status = 'Applied';
-    
-    // Clear selection fields if they exist (even if not in strict schema)
-    const appAny = application as any;
-    appAny.staff_id = undefined;
-    appAny.staff_name = undefined;
-    appAny.staff_department = undefined;
-    appAny.selection_date = undefined;
-    appAny.selection_remarks = undefined;
-    appAny.interview_requested = undefined;
-    appAny.interview_status = undefined;
+    const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
+      candidateId,
+      updateData,
+      { new: true, runValidators: true }
+    );
 
-    // Save the changes
-    await candidate.save();
+    if (!updatedCandidate) {
+      throw new Error('Failed to update candidate record');
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Selection removed successfully and candidate reverted to Applied status'
+      message: `Selection updated successfully. Status reverted to ${targetStatus}`,
+      status: targetStatus
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error removing selection:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error while removing selection'
+      message: error.message || 'Internal server error while removing selection'
     });
   }
 });
