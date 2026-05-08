@@ -3,6 +3,7 @@ import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
 import { getApplicationStats } from "../controllers/admin/stats.controller";
 import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
+import { getFullStatistics } from "../controllers/admin/full.stats.controller";
 import {
   getNotification,
   createNotification,
@@ -646,6 +647,7 @@ router.get(
 
 router.get("/dashboard/stats", getApplicationStats);
 router.get("/dashboard/programme-wise", getProgrammeWiseStats);
+router.get("/dashboard/full-statistics", getFullStatistics);
 // ++++++++++++++++++++++++Site Notification++++++++++++++++++++++++++
 router.get("/adm_site/notification", getNotification);
 router.post("/adm_site/notification", createNotification);
