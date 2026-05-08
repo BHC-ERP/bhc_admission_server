@@ -181,8 +181,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       remarks,
       program_code,
       interviewDate,
-      user,
-      selected_stream
+      user
     } = req.body;
 
     if (!program_code) {
@@ -206,10 +205,10 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    if (!user.staff_id || !user.name || !user.stream || !user.shift) {
+    if (!user.staff_id || !user.name) {
       return res.status(400).json({
         success: false,
-        message: 'User must contain staff_id, name, stream, and shift'
+        message: 'User must contain staff_id and name'
       });
     }
 
@@ -230,30 +229,6 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
       });
     }
 
-    const validStreamValues = ['Aided', 'Self-Finance'];
-
-    if (!validStreamValues.includes(user.stream)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid stream value: '${user.stream}'`
-      });
-    }
-
-    if (selected_stream && !validStreamValues.includes(selected_stream)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid selected_stream value`
-      });
-    }
-
-    const validShiftValues = ['Shift-1', 'Shift-2'];
-
-    if (!validShiftValues.includes(user.shift)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid shift value`
-      });
-    }
 
     const currentDate = new Date();
 
@@ -289,16 +264,9 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
 
     const originalStream = targetApplication.stream;
 
-    const admissionStream = selected_stream || user.stream;
+    const admissionStream = originalStream;
 
-    const isStreamChanged = originalStream !== admissionStream;
-
-    if (admissionStream !== user.stream) {
-      return res.status(400).json({
-        success: false,
-        message: `You can only admit candidates to your own stream`
-      });
-    }
+    const isStreamChanged = false;
 
     const updatedApplications = candidate.application_preferences.applications.map((app, index) => {
 
@@ -323,11 +291,8 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
             ...(app.selected || []),
             {
               selected_by: {
-                selected_stream: admissionStream,
                 staff_id: user.staff_id,
                 staff_name: user.name,
-                stream: user.stream,
-                shift: user.shift,
                 department: user.department_code || user.department,
                 designation: user.designation
               },
