@@ -490,7 +490,7 @@ export const getAllHODSelectionApplications = async (req: Request, res: Response
         // Find all candidates that have at least one application with status "HOD_SELECTION"
         const data = await CandidateAdmission.find({
             "application_preferences.applications": {
-                $elemMatch: { status: "HOD_SELECTION" }
+                $elemMatch: { status: { $in: ["HOD_SELECTION", "VERIFIED"] } }
             }
         });
 
@@ -1920,7 +1920,7 @@ export const fromSubmitController = async (req: Request, res: Response) => {
 export const updateCandidateBasicDetails = async (req: Request, res: Response) => {
     try {
         const { regId } = req.params;
-        const { personal_details, address, academic_background, parents: parentsData, staffname, staffid } = req.body;
+        const { personal_details, address, academic_background, parents: parentsData, admission_status, staffname, staffid } = req.body;
 
         if (!regId) {
             return res.status(400).json({ success: false, message: "Registration number is required" });
@@ -1938,7 +1938,8 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
             personal_details: candidateObj.personal_details,
             address: candidateObj.address,
             academic_background: candidateObj.academic_background,
-            parents: candidateObj.parents
+            parents: candidateObj.parents,
+            admission_status: candidateObj.admission_status
         };
 
         const updateData: any = {};
@@ -1978,6 +1979,22 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
                     ...candidateObj.academic_background?.school_education,
                     ...academic_background.school_education
                 }
+            };
+        }
+
+        if (admission_status && admission_status.current) {
+            updateData.admission_status = {
+                ...candidateObj.admission_status,
+                previous: candidateObj.admission_status?.current,
+                current: admission_status.current,
+                status_history: [
+                    ...(candidateObj.admission_status?.status_history || []),
+                    {
+                        status: admission_status.current,
+                        changed_at: new Date(),
+                        remarks: `Status updated to ${admission_status.current} by ${staffname || 'Admin'}`
+                    }
+                ]
             };
         }
 

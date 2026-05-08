@@ -51,6 +51,8 @@ export const sendSms = async (req: Request, res: Response) => {
             dynamic_values, 
             candidate_id, 
             application_number,
+            stream,
+            shift,
             user // Details of the staff sending the SMS
         } = req.body;
 
@@ -127,7 +129,9 @@ export const sendSms = async (req: Request, res: Response) => {
                     },
                     $set: {
                         "admission_status.current": "SMS_SENT",
-                        "application_preferences.applications.$.status": "SMS_SENT"
+                        "application_preferences.applications.$.status": "SMS_SENT",
+                        ...(stream && { "application_preferences.applications.$.stream": stream }),
+                        ...(shift && { "application_preferences.applications.$.shift": shift })
                     }
                 }
             );
