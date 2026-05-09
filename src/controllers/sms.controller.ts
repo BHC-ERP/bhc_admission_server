@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import SmsTemplate from "../models/smsTemplate.model";
 import { sendSMSService } from "../services/sms.service";
 import CandidateAdmission from "../models/candidate.model";
+import mongoose from "mongoose";
 
 export const getSmsTemplates = async (req: Request, res: Response) => {
     try {
@@ -45,11 +46,11 @@ export const deleteSmsTemplate = async (req: Request, res: Response) => {
 
 export const sendSms = async (req: Request, res: Response) => {
     try {
-        const { 
-            mobile, 
-            template_identifier, 
-            dynamic_values, 
-            candidate_id, 
+        const {
+            mobile,
+            template_identifier,
+            dynamic_values,
+            candidate_id,
             application_number,
             stream,
             shift,
@@ -74,8 +75,23 @@ export const sendSms = async (req: Request, res: Response) => {
             });
         }
 
+        // Update payment enablement in candidate_fees_master
+        if (application_number) {
+            const db = mongoose.connection.useDb('admission2026');
+            const isPaymentEnabled = (template_identifier === 'admission_spot' || template_identifier === "fee_sms");
+            
+            await db.collection('candidate_fees_master').updateOne(
+                { application_number: Number(application_number) },
+                { $set: { is_payment_enabled: isPaymentEnabled } }
+            );
+            
+            console.log(`[SMS] Payment ${isPaymentEnabled ? 'ENABLED' : 'DISABLED'} for app ${application_number} (Template: ${template_identifier})`);
+        }
+
         // Send SMS using service
         await sendSMSService(mobile, msg);
+
+
 
         // Update Candidate Model if IDs provided
         if (candidate_id && application_number) {
@@ -114,9 +130,9 @@ export const sendSms = async (req: Request, res: Response) => {
             };
 
             await CandidateAdmission.findOneAndUpdate(
-                { 
-                    _id: candidate_id, 
-                    "application_preferences.applications.application_number": application_number 
+                {
+                    _id: candidate_id,
+                    "application_preferences.applications.application_number": application_number
                 },
                 {
                     $push: {
@@ -137,18 +153,18 @@ export const sendSms = async (req: Request, res: Response) => {
             );
         }
 
-        res.status(200).json({ 
-            success: true, 
+        res.status(200).json({
+            success: true,
             message: "✅ SMS SENT SUCCESSFULLY",
-            generated_message: msg 
+            generated_message: msg
         });
 
     } catch (error: any) {
         console.error("❌ Failed to Send SMS:", error.message);
-        res.status(500).json({ 
-            success: false, 
-            message: "❌ Failed to Send SMS", 
-            error: error.message 
+        res.status(500).json({
+            success: false,
+            message: "❌ Failed to Send SMS",
+            error: error.message
         });
     }
 };
