@@ -458,7 +458,7 @@ router.get(
     try {
 
       const { programCode, stream } = req.params;
-      const { staff_id, from_date, to_date, community } = req.query;
+      const { from_date, to_date, community } = req.query;
 
       /* STEP 1: Check Program Exists */
 
@@ -480,11 +480,6 @@ router.get(
         "application_preferences.applications.stream": stream,
         "application_preferences.applications.selected": { $ne: [] } // Has at least one selection
       };
-
-      // Add staff filter if provided
-      if (staff_id) {
-        matchConditions["application_preferences.applications.selected.selected_by.staff_id"] = staff_id;
-      }
 
       // Add date range filter if provided
       if (from_date || to_date) {
@@ -577,7 +572,6 @@ router.get(
             shift: program.shift
           },
           filters_applied: {
-            staff_id: staff_id || null,
             from_date: from_date || null,
             to_date: to_date || null,
             community: community || null
@@ -624,7 +618,6 @@ router.get(
           shift: program.shift
         },
         filters_applied: {
-          staff_id: staff_id || null,
           from_date: from_date || null,
           to_date: to_date || null,
           community: community || null
