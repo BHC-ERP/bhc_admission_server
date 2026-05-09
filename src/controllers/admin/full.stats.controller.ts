@@ -3,34 +3,22 @@ import mongoose from "mongoose";
 import CandidateAdmission from "../../models/candidate.model";
 import programsModel from "../../models/programs.model";
 
-/**
- * @desc Get comprehensive admission statistics across programs and streams
- * @route GET /api/admin/dashboard/full-statistics
- * @access Admin
- */
 export const getFullStatistics = async (req: Request, res: Response) => {
     try {
         const academic_year = "2026-2027";
+        const ADMITTED_STATUSES = new Set(["ADMITTED", "ADMIT_FINAL", "ADMIT"]);
 
         /* ============================================================
-           1. FETCH ALL ACTIVE PROGRAMS
+           1. PROGRAMS
         ============================================================ */
         const programs = await programsModel.find({ show: true }).lean();
-
-        // program_code → program doc  (used to resolve missing shift on applications)
         const programMasterMap: Record<string, any> = {};
         programs.forEach((p: any) => {
             if (p.program_code) programMasterMap[p.program_code] = p;
         });
 
         /* ============================================================
-           2. AGGREGATE CANDIDATE DATA — one doc per application after $unwind
-              Groups by program_code + stream + shift + status and collects:
-              - unique submitted reg numbers  (true registered count)
-              - unique mark-entered reg numbers
-              - reg numbers in this bucket    (for paid lookup)
-              - app_number → reg_number pairs (bridge for swipe payments)
-              - sms count
+           2. AGGREGATE CANDIDATE DATA
         ============================================================ */
         const statsAggregation = await CandidateAdmission.aggregate([
             { $match: { academic_year } },
@@ -40,14 +28,10 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                     _id: {
                         program_code: "$application_preferences.applications.program_code",
                         stream: "$application_preferences.applications.stream",
-                        shift: {
-                            $ifNull: ["$application_preferences.applications.shift", ""]
-                        },
+                        shift: { $ifNull: ["$application_preferences.applications.shift", ""] },
                         status: "$application_preferences.applications.status"
                     },
                     applicationCount: { $sum: 1 },
-
-                    // Unique reg numbers that have submitted_at (true registered)
                     submittedRegNumbers: {
                         $addToSet: {
                             $cond: [
@@ -57,22 +41,15 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                             ]
                         }
                     },
-
-                    // All unique reg numbers in this bucket (for online paid lookup)
                     regNumbers: { $addToSet: "$registration_number" },
-
-                    // application_number → registration_number bridge
-                    // Used to resolve swipe payments (keyed by application_number)
-                    // back to a registration_number so both payment sources share
-                    // the same paidRegNumbers Set without double-counting
                     appToRegMap: {
                         $push: {
                             appNo: "$application_preferences.applications.application_number",
-                            regNo: "$registration_number"
+                            regNo: "$registration_number",
+                            program_code: "$application_preferences.applications.program_code",
+                            stream: "$application_preferences.applications.stream"
                         }
                     },
-
-                    // Unique reg numbers where 12th marks percentage > 0
                     markEnteredRegNumbers: {
                         $addToSet: {
                             $cond: [
@@ -87,8 +64,6 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                             ]
                         }
                     },
-
-                    // Total SMS messages sent for applications in this bucket
                     smsSentCount: {
                         $sum: {
                             $size: {
@@ -104,138 +79,241 @@ export const getFullStatistics = async (req: Request, res: Response) => {
         ]);
 
         /* ============================================================
-           3. BUILD LOOKUP STRUCTURES FOR PAYMENT QUERIES
-
-           allRegNumbers  — all reg numbers across all buckets
-                            used to query Admission_fee_payment_audit_Log
-
-           allAppNumbers  — all application numbers across all buckets
-                            used to query swipeauditlogs
-
-           appToRegLookup — Map<application_number_string, reg_number_string>
-                            bridges swipe payment app numbers to reg numbers
+           3. DEBUG: Get all application numbers from admitted candidates
         ============================================================ */
-        const allRegNumbers  = new Set<string>();
-        const allAppNumbers  = new Set<string>();
-        const appToRegLookup = new Map<string, string>();
+        const allAdmittedApplications: any[] = [];
 
         statsAggregation.forEach(item => {
-            // Collect all reg numbers
-            item.regNumbers.forEach((reg: any) => {
-                if (reg != null) allRegNumbers.add(reg.toString());
-            });
-
-            // Build application_number → registration_number map
-            item.appToRegMap.forEach(({ appNo, regNo }: any) => {
-                if (appNo != null && regNo != null) {
-                    const appStr = appNo.toString();
-                    const regStr = regNo.toString();
-                    allAppNumbers.add(appStr);
-                    // application_preferences.applications.application_number → registration_number
-                    appToRegLookup.set(appStr, regStr);
-                }
-            });
+            if (ADMITTED_STATUSES.has(item._id.status)) {
+                item.appToRegMap.forEach(({ appNo, regNo, program_code, stream }: any) => {
+                    if (appNo != null) {
+                        allAdmittedApplications.push({
+                            application_number: appNo,
+                            registration_number: regNo,
+                            program_code,
+                            stream,
+                            status: item._id.status
+                        });
+                    }
+                });
+            }
         });
+
+        console.log("Total admitted applications:", allAdmittedApplications.length);
+        console.log("Sample admitted applications (first 5):", allAdmittedApplications.slice(0, 5));
 
         const feeCollectionDb = mongoose.connection.useDb("fee_collection");
 
         /* ============================================================
-           4A. ONLINE PAYMENTS — Admission_fee_payment_audit_Log
-               Match: responsePayload.order_status = "Success"
-               Identifier stored in merchant_param1 / merchant_param4
-               as registration_number
+           4A. DEBUG: Check what's in admission_fees collection
         ============================================================ */
-        const auditLogCollection = feeCollectionDb.collection(
-            "Admission_fee_payment_audit_Log"
-        );
+        const admissionFeesCollection = feeCollectionDb.collection("admission_fees");
 
-        const onlinePayments = await auditLogCollection
-            .find(
-                {
-                    "responsePayload.order_status": "Success",
-                    $or: [
-                        {
-                            "responsePayload.merchant_param1": {
-                                $in: Array.from(allRegNumbers)
-                            }
-                        },
-                        {
-                            "responsePayload.merchant_param4": {
-                                $in: Array.from(allRegNumbers)
-                            }
-                        }
-                    ]
-                },
-                {
-                    projection: {
-                        "responsePayload.merchant_param1": 1,
-                        "responsePayload.merchant_param4": 1
-                    }
-                }
-            )
+        // Get sample payments to see the data structure
+        const samplePayments = await admissionFeesCollection.find({ status: "SUCCESS" }).limit(5).toArray();
+        console.log("Sample online payments:", samplePayments.map(p => ({
+            application_number: p.application_number,
+            registration_number: p.registration_number,
+            status: p.status,
+            amount: p.amount
+        })));
+
+        // Get all successful payment application numbers
+        const allOnlinePayments = await admissionFeesCollection
+            .find({ status: "SUCCESS" }, { projection: { application_number: 1, registration_number: 1, amount: 1 } })
             .toArray();
 
-        // Single unified Set — both online and swipe payments feed into this
-        const paidRegNumbers = new Set<string>();
+        console.log("Total online payments:", allOnlinePayments.length);
+        console.log("Online payment application numbers:", allOnlinePayments.slice(0, 10).map(p => p.application_number));
 
-        onlinePayments.forEach(p => {
-            const p1 = p.responsePayload?.merchant_param1?.toString();
-            const p4 = p.responsePayload?.merchant_param4?.toString();
-            // Guard: only add if this reg number is actually in our candidate set
-            if (p1 && allRegNumbers.has(p1)) paidRegNumbers.add(p1);
-            if (p4 && allRegNumbers.has(p4)) paidRegNumbers.add(p4);
-        });
+        // Check for matches
+        const admittedAppNumbers = new Set(allAdmittedApplications.map(a => a.application_number.toString()));
+        const onlinePaymentAppNumbers = new Set(allOnlinePayments.map(p => p.application_number?.toString()).filter(Boolean));
+
+        const matchingAppNumbers = [...admittedAppNumbers].filter(appNo => onlinePaymentAppNumbers.has(appNo));
+        console.log("Matching application numbers between admitted and online payments:", matchingAppNumbers.length);
+        console.log("First 10 matching app numbers:", matchingAppNumbers.slice(0, 10));
 
         /* ============================================================
-           4B. SWIPE PAYMENTS — swipeauditlogs
-               Match: event = "SWIPE_PAYMENT_RECORDED"
-               Identifier: application_number (Number in DB)
-               which maps to application_preferences.applications.application_number
-               in the candidate doc.
-
-               Resolution chain:
-               swipeauditlogs.application_number (e.g. 26008963)
-                 → appToRegLookup
-                 → application_preferences.applications.application_number = 26008963
-                 → registration_number = 202602629
-                 → paidRegNumbers.add("202602629")
+           4B. SWIPE PAYMENTS DEBUG
         ============================================================ */
-        const swipeCollection = feeCollectionDb.collection("swipeauditlogs");
+        const swipeCollection = feeCollectionDb.collection("swipepayments");
 
-        // application_number is stored as Number in swipeauditlogs
-        const appNumbersAsNumbers = Array.from(allAppNumbers)
-            .map(n => {
-                const asNum = Number(n);
-                return isNaN(asNum) ? n : asNum;
+        const sampleSwipePayments = await swipeCollection.find({ status: "SWIPE_RECORDED" }).limit(5).toArray();
+        console.log("Sample swipe payments:", sampleSwipePayments.map(s => ({
+            application_number: s.application_number,
+            registration_number: s.registration_number,
+            status: s.status,
+            total_amount: s.total_amount
+        })));
+
+        const allSwipePayments = await swipeCollection
+            .find({ status: "SWIPE_RECORDED" }, { projection: { application_number: 1, registration_number: 1, total_amount: 1 } })
+            .toArray();
+
+        console.log("Total swipe payments:", allSwipePayments.length);
+
+        const swipePaymentAppNumbers = new Set(allSwipePayments.map(s => s.application_number?.toString()).filter(Boolean));
+        const matchingSwipeAppNumbers = [...admittedAppNumbers].filter(appNo => swipePaymentAppNumbers.has(appNo));
+        console.log("Matching application numbers between admitted and swipe payments:", matchingSwipeAppNumbers.length);
+
+        /* ============================================================
+           5. FIXED PAYMENT LOOKUP - Using multiple matching strategies
+        ============================================================ */
+
+        // Create a map of application_number to program details from admitted candidates
+        const appToProgramMap = new Map();
+        allAdmittedApplications.forEach(app => {
+            appToProgramMap.set(app.application_number.toString(), {
+                program_code: app.program_code,
+                stream: app.stream,
+                registration_number: app.registration_number
             });
+        });
 
-        const swipePayments = await swipeCollection
-            .find(
-                {
-                    event: "SWIPE_PAYMENT_RECORDED",
-                    application_number: { $in: appNumbersAsNumbers }
-                },
-                {
-                    projection: { application_number: 1 }
-                }
-            )
-            .toArray();
+        // Process online payments with matching
+        const onlinePaymentsByProgram: Record<string, any> = {};
 
-        swipePayments.forEach(s => {
-            if (s.application_number != null) {
-                const appStr = s.application_number.toString();
-                // Resolve application_number → registration_number
-                const regStr = appToRegLookup.get(appStr);
-                if (regStr) paidRegNumbers.add(regStr);
+        for (const payment of allOnlinePayments) {
+            const appNo = payment.application_number?.toString();
+            if (!appNo) continue;
+
+            const programInfo = appToProgramMap.get(appNo);
+            if (!programInfo) {
+                console.log(`No matching program found for online payment application: ${appNo}`);
+                continue;
             }
+
+            const key = `${programInfo.program_code}_${programInfo.stream}_Shift-1`;
+
+            if (!onlinePaymentsByProgram[key]) {
+                onlinePaymentsByProgram[key] = {
+                    _id: {
+                        program_code: programInfo.program_code,
+                        stream: programInfo.stream,
+                        shift: "Shift-1"
+                    },
+                    count: 0,
+                    application_numbers: new Set(),
+                    registration_numbers: new Set(),
+                    payment_details: [],
+                    total_amount: 0
+                };
+            }
+
+            onlinePaymentsByProgram[key].count++;
+            onlinePaymentsByProgram[key].application_numbers.add(appNo);
+            onlinePaymentsByProgram[key].registration_numbers.add(programInfo.registration_number);
+            onlinePaymentsByProgram[key].payment_details.push({
+                application_number: payment.application_number,
+                registration_number: programInfo.registration_number,
+                amount: payment.amount,
+                transaction_date: payment.transaction_date,
+                tracking_id: payment.tracking_id
+            });
+            onlinePaymentsByProgram[key].total_amount += parseFloat(payment.amount || 0);
+        }
+
+        // Process swipe payments with matching
+        const swipePaymentsByProgram: Record<string, any> = {};
+
+        for (const payment of allSwipePayments) {
+            const appNo = payment.application_number?.toString();
+            if (!appNo) continue;
+
+            const programInfo = appToProgramMap.get(appNo);
+            if (!programInfo) {
+                console.log(`No matching program found for swipe payment application: ${appNo}`);
+                continue;
+            }
+
+            const key = `${programInfo.program_code}_${programInfo.stream}_Shift-1`;
+
+            if (!swipePaymentsByProgram[key]) {
+                swipePaymentsByProgram[key] = {
+                    _id: {
+                        program_code: programInfo.program_code,
+                        stream: programInfo.stream,
+                        shift: "Shift-1"
+                    },
+                    count: 0,
+                    application_numbers: new Set(),
+                    registration_numbers: new Set(),
+                    payment_details: [],
+                    total_amount: 0
+                };
+            }
+
+            swipePaymentsByProgram[key].count++;
+            swipePaymentsByProgram[key].application_numbers.add(appNo);
+            swipePaymentsByProgram[key].registration_numbers.add(programInfo.registration_number);
+            swipePaymentsByProgram[key].payment_details.push({
+                application_number: payment.application_number,
+                registration_number: programInfo.registration_number,
+                swipe_no: payment.swipe_no,
+                total_amount: payment.total_amount,
+                transaction_date: payment.transaction_date,
+                tracking_id: payment.tracking_id
+            });
+            swipePaymentsByProgram[key].total_amount += parseFloat(payment.total_amount || 0);
+        }
+
+        console.log("Online payments by program:", Object.keys(onlinePaymentsByProgram).length);
+        console.log("Swipe payments by program:", Object.keys(swipePaymentsByProgram).length);
+
+        // Convert Sets to Arrays for JSON response
+        const onlinePaymentsArray = Object.values(onlinePaymentsByProgram).map(item => ({
+            ...item,
+            application_numbers: Array.from(item.application_numbers),
+            registration_numbers: Array.from(item.registration_numbers)
+        }));
+
+        const swipePaymentsArray = Object.values(swipePaymentsByProgram).map(item => ({
+            ...item,
+            application_numbers: Array.from(item.application_numbers),
+            registration_numbers: Array.from(item.registration_numbers)
+        }));
+
+        /* ============================================================
+           6. SMS COUNT — candidate_fees_master
+        ============================================================ */
+        const admission2026Db = mongoose.connection.useDb("admission2026");
+        const candidateFeesMasterCollection = admission2026Db.collection("candidate_fees_master");
+
+        const feesMasterSMSAgg = await candidateFeesMasterCollection.aggregate([
+            {
+                $match: {
+                    academic_year,
+                    is_payment_enabled: true
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        program_code: "$program_code",
+                        stream: "$stream",
+                        shift: { $ifNull: ["$shift", ""] }
+                    },
+                    smsCount: { $sum: 1 }
+                }
+            }
+        ]).toArray();
+
+        const feesMasterSMSMap: Record<string, number> = {};
+        let globalFeesMasterSMSCount = 0;
+
+        feesMasterSMSAgg.forEach((item: any) => {
+            const { program_code, stream, shift } = item._id;
+            if (!program_code) return;
+            const key = `${program_code}_${stream}_${shift}`;
+            feesMasterSMSMap[key] = item.smsCount;
+            globalFeesMasterSMSCount += item.smsCount;
         });
 
         /* ============================================================
-           5. GLOBAL TOTALS
+           7. GLOBAL TOTALS
         ============================================================ */
-        const totalRegistered = await CandidateAdmission.countDocuments({
-            academic_year
-        });
+        const totalRegistered = await CandidateAdmission.countDocuments({ academic_year });
 
         const globalSMSAgg = await CandidateAdmission.aggregate([
             { $match: { academic_year } },
@@ -259,26 +337,17 @@ export const getFullStatistics = async (req: Request, res: Response) => {
         const globalSMSCount: number = globalSMSAgg[0]?.total || 0;
 
         /* ============================================================
-           6. BUILD STATS MAP  →  key: "program_code_stream_shift"
-
-           For each aggregation bucket:
-           a) Resolve shift from program master if missing on the application
-           b) Accumulate unique submitted candidates via Set (no double-count)
-           c) Mark paid candidates by checking unified paidRegNumbers Set
-           d) Count enrolled from ADMITTED / ADMIT_FINAL / ADMIT statuses
+           8. BUILD STATS MAP
         ============================================================ */
-        const ADMITTED_STATUSES = new Set(["ADMITTED", "ADMIT_FINAL", "ADMIT"]);
-
         const statsMap: Record<
             string,
             {
-                submittedRegSet:   Set<string>;
+                submittedRegSet: Set<string>;
                 markEnteredRegSet: Set<string>;
-                paidRegSet:        Set<string>;
-                enrolledCount:     number;
-                smsCount:          number;
-                statuses:          Record<string, number>;
-                applicationCount:  number;
+                enrolledCount: number;
+                smsCount: number;
+                statuses: Record<string, number>;
+                totalAppCount: number;
             }
         > = {};
 
@@ -286,7 +355,6 @@ export const getFullStatistics = async (req: Request, res: Response) => {
             const { program_code, stream, status } = item._id;
             if (!program_code) return;
 
-            // Resolve shift: use what's on the application, fall back to program master
             let shift = item._id.shift;
             if (!shift && programMasterMap[program_code]) {
                 shift = programMasterMap[program_code].shift || "";
@@ -296,115 +364,176 @@ export const getFullStatistics = async (req: Request, res: Response) => {
 
             if (!statsMap[key]) {
                 statsMap[key] = {
-                    submittedRegSet:   new Set(),
+                    submittedRegSet: new Set(),
                     markEnteredRegSet: new Set(),
-                    paidRegSet:        new Set(),
-                    enrolledCount:     0,
-                    smsCount:          0,
-                    statuses:          {},
-                    applicationCount:  0
+                    enrolledCount: 0,
+                    smsCount: 0,
+                    statuses: {},
+                    totalAppCount: 0
                 };
             }
 
             const target = statsMap[key];
 
-            // Unique submitted candidates
             item.submittedRegNumbers.forEach((reg: any) => {
                 if (reg != null) target.submittedRegSet.add(reg.toString());
             });
 
-            // Unique mark-entered candidates
             item.markEnteredRegNumbers.forEach((reg: any) => {
                 if (reg != null) target.markEnteredRegSet.add(reg.toString());
             });
 
-            // Paid candidates — unified check (online + swipe)
-            item.regNumbers.forEach((reg: any) => {
-                if (reg != null && paidRegNumbers.has(reg.toString())) {
-                    target.paidRegSet.add(reg.toString());
-                }
-            });
+            target.statuses[status] = (target.statuses[status] || 0) + item.applicationCount;
+            target.totalAppCount += item.applicationCount;
 
-            // Status bucket count
-            target.statuses[status] =
-                (target.statuses[status] || 0) + item.applicationCount;
-            target.applicationCount += item.applicationCount;
-
-            // Enrolled
             if (ADMITTED_STATUSES.has(status)) {
                 target.enrolledCount += item.applicationCount;
             }
 
-            // SMS
             target.smsCount += item.smsSentCount;
         });
 
         /* ============================================================
-           7. FORMAT FINAL RESPONSE — one entry per program
+           9. BUILD FINAL PROGRAM DATA WITH PAYMENTS
         ============================================================ */
-        const finalResult = programs
-            .map((prog: any) => {
-                const { program_code: pCode, stream: pStream, shift: pShift } = prog;
-                if (!pCode) return null;
+        const programMap: Record<string, any> = {};
 
-                const key = `${pCode}_${pStream}_${pShift}`;
-                const s   = statsMap[key];
+        // Initialize with all programs
+        programs.forEach((prog: any) => {
+            const { program_code: pCode, stream: pStream, shift: pShift } = prog;
+            if (!pCode) return;
 
-                const registeredCount  = s ? s.submittedRegSet.size   : 0;
-                const markEnteredCount = s ? s.markEnteredRegSet.size  : 0;
-                const paidCount        = s ? s.paidRegSet.size         : 0;
-                const enrolledCount    = s ? s.enrolledCount           : 0;
-                const smsCount         = s ? s.smsCount                : 0;
-                const statuses         = s ? s.statuses                : {};
-                const applicationCount = s ? s.applicationCount        : 0;
-
-                return {
-                    program_code:        pCode,
-                    program_name:        prog.program_name,
-                    department:          prog.department_name,
-                    type:                prog.type,
-                    stream:              pStream,
-                    shift:               pShift,
-                    sanctioned_strength: prog.sanctioned_strength || 0,
-                    statistics: {
-                        total_applications: applicationCount,
-                        registered:         registeredCount,
-                        mark_entered:       markEnteredCount,
-                        share:
-                            totalRegistered > 0
-                                ? ((registeredCount / totalRegistered) * 100).toFixed(1) + "%"
-                                : "0%",
-                        applied:       statuses["Applied"]       || 0,
-                        hod_selection:
-                            (statuses["HOD_SELECTION"] || 0) +
-                            (statuses["HOD_SELECTION_INTERVIEW"] || 0),
-                        verified:      statuses["VERIFIED"]      || 0,
-                        sms_sent:      statuses["SMS_SENT"]      || 0,
-                        paid:          paidCount,
-                        // not_paid = admitted but haven't paid yet
-                        not_paid:      Math.max(0, enrolledCount - paidCount),
-                        enrolled:      enrolledCount,
-                        sms_count:     smsCount,
-                        seats_available: Math.max(
-                            0,
-                            (prog.sanctioned_strength || 0) - enrolledCount
-                        )
+            const key = `${pCode}_${pStream}_${pShift}`;
+            programMap[key] = {
+                program_info: {
+                    program_code: pCode,
+                    program_name: prog.program_name,
+                    department: prog.department_name,
+                    type: prog.type,
+                    stream: pStream,
+                    shift: pShift,
+                    sanctioned_strength: prog.sanctioned_strength || 0
+                },
+                statistics: {
+                    total_applications: 0,
+                    registered: 0,
+                    mark_entered: 0,
+                    enrolled: 0,
+                    sms_sent: 0,
+                    sms_history_count: 0,
+                    seats_available: 0,
+                    status_breakdown: {}
+                },
+                payments: {
+                    online: {
+                        count: 0,
+                        unique_students: 0,
+                        total_amount: 0,
+                        transactions: []
+                    },
+                    swipe: {
+                        count: 0,
+                        unique_students: 0,
+                        total_amount: 0,
+                        transactions: []
+                    },
+                    combined: {
+                        total_paid_students: 0,
+                        total_amount: 0
                     }
+                }
+            };
+        });
+
+        // Add statistics to program map
+        Object.entries(statsMap).forEach(([key, stats]) => {
+            if (programMap[key]) {
+                const sanctionedStrength = programMap[key].program_info.sanctioned_strength;
+                const registeredCount = stats.submittedRegSet.size;
+                const enrolledCount = stats.enrolledCount;
+
+                programMap[key].statistics = {
+                    total_applications: stats.totalAppCount,
+                    registered: registeredCount,
+                    mark_entered: stats.markEnteredRegSet.size,
+                    enrolled: enrolledCount,
+                    sms_sent: feesMasterSMSMap[key] || 0,
+                    sms_history_count: stats.smsCount,
+                    seats_available: Math.max(0, sanctionedStrength - enrolledCount),
+                    status_breakdown: stats.statuses
                 };
-            })
-            .filter(Boolean);
+            }
+        });
+
+        // Add online payments to program map
+        onlinePaymentsArray.forEach(payment => {
+            const { program_code, stream, shift } = payment._id;
+            const key = `${program_code}_${stream}_${shift}`;
+
+            if (programMap[key]) {
+                programMap[key].payments.online = {
+                    count: payment.count,
+                    unique_students: payment.registration_numbers.length,
+                    total_amount: payment.total_amount,
+                    transactions: payment.payment_details
+                };
+            }
+        });
+
+        // Add swipe payments to program map
+        swipePaymentsArray.forEach(payment => {
+            const { program_code, stream, shift } = payment._id;
+            const key = `${program_code}_${stream}_${shift}`;
+
+            if (programMap[key]) {
+                programMap[key].payments.swipe = {
+                    count: payment.count,
+                    unique_students: payment.registration_numbers.length,
+                    total_amount: payment.total_amount,
+                    transactions: payment.payment_details
+                };
+
+                // Update combined totals
+                const onlineTotal = programMap[key].payments.online.total_amount || 0;
+                programMap[key].payments.combined = {
+                    total_paid_students: programMap[key].payments.online.unique_students + payment.registration_numbers.length,
+                    total_amount: onlineTotal + payment.total_amount
+                };
+            }
+        });
+
+        // Calculate combined totals for programs without swipe payments
+        Object.keys(programMap).forEach(key => {
+            if (programMap[key].payments.combined.total_amount === 0 && programMap[key].payments.online.total_amount > 0) {
+                programMap[key].payments.combined = {
+                    total_paid_students: programMap[key].payments.online.unique_students,
+                    total_amount: programMap[key].payments.online.total_amount
+                };
+            }
+        });
+
+        // Convert program map to array for response
+        const programsData = Object.values(programMap);
 
         /* ============================================================
-           8. RESPONSE
+           10. RESPONSE WITH DEBUG INFO
         ============================================================ */
         return res.json({
             success: true,
+
             summary: {
-                total_candidates:         totalRegistered,
-                global_sms_sent:          globalSMSCount,
-                total_admission_fee_paid: paidRegNumbers.size
+                total_candidates: totalRegistered,
+                global_sms_sent: globalFeesMasterSMSCount,
+                global_sms_history_count: globalSMSCount,
+                total_payment_records: {
+                    online: allOnlinePayments.length,
+                    swipe: allSwipePayments.length,
+                    total: allOnlinePayments.length + allSwipePayments.length
+                }
             },
-            data: finalResult
+            data: {
+                programs: programsData
+            }
         });
 
     } catch (error) {
