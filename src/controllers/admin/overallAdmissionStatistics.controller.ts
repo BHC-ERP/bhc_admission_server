@@ -17,7 +17,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
 
         // 2. Aggregate from candidateadmissions
         const candidateStats = await CandidateAdmission.aggregate([
-            { $match: { academic_year } },
+            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
             { $unwind: "$application_preferences.applications" },
             {
                 $group: {
@@ -26,7 +26,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                         stream: "$application_preferences.applications.stream",
                         shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
                     },
-                    applied_apps: { $addToSet: "$application_preferences.applications.application_number" },
+
                     hod_selection_apps: {
                         $addToSet: {
                             $cond: [
@@ -45,15 +45,6 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                             ]
                         }
                     },
-                    sms_sent_apps: {
-                        $addToSet: {
-                            $cond: [
-                                { $gt: [{ $size: { $ifNull: ["$application_preferences.applications.sms_history", []] } }, 0] },
-                                "$application_preferences.applications.application_number",
-                                "$$REMOVE"
-                            ]
-                        }
-                    },
                     admitted_apps: {
                         $addToSet: {
                             $cond: [
@@ -63,6 +54,22 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                             ]
                         }
                     }
+                }
+            }
+        ]);
+
+        // 2b. Aggregate applied apps from candidate admissions
+        const appliedStats = await CandidateAdmission.aggregate([
+            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
+            { $unwind: "$application_preferences.applications" },
+            {
+                $group: {
+                    _id: {
+                        program_code: "$application_preferences.applications.program_code",
+                        stream: "$application_preferences.applications.stream",
+                        shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
+                    },
+                    applied_apps: { $addToSet: "$application_preferences.applications.application_number" }
                 }
             }
         ]);
@@ -126,6 +133,27 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             }
         ]).toArray();
 
+
+        // 3a. Aggregate SMS sent apps from candidate admissions
+        const smsSentStats = await CandidateAdmission.aggregate([
+            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
+            { $unwind: "$application_preferences.applications" },
+            {
+                $match: {
+                    "application_preferences.applications.sms_history": { $exists: true, $ne: [] }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        program_code: "$application_preferences.applications.program_code",
+                        stream: "$application_preferences.applications.stream",
+                        shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
+                    },
+                    sms_sent_apps: { $addToSet: "$application_preferences.applications.application_number" }
+                }
+            }
+        ]);
         // 4. Combine results into a unified map
         const programMap: Record<string, any> = {};
 
@@ -155,11 +183,25 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         candidateStats.forEach(stat => {
             const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
             if (programMap[key]) {
-                stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
                 stat.hod_selection_apps.forEach((app: any) => programMap[key].hod_selection_set.add(app));
                 stat.verified_apps.forEach((app: any) => programMap[key].verified_set.add(app));
-                stat.sms_sent_apps.forEach((app: any) => programMap[key].sms_sent_set.add(app));
                 stat.admitted_apps.forEach((app: any) => programMap[key].admitted_set.add(app));
+            }
+        });
+
+        // Add SMS sent stats
+        smsSentStats.forEach(stat => {
+            const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
+            if (programMap[key]) {
+                stat.sms_sent_apps.forEach((app: any) => programMap[key].sms_sent_set.add(app));
+            }
+        });
+
+        // Add applied stats
+        appliedStats.forEach(stat => {
+            const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
+            if (programMap[key]) {
+                stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
             }
         });
 
