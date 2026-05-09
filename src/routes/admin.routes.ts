@@ -11,6 +11,8 @@ import {
   deleteNotification
 } from "../controllers/admin/notification.controller";
 import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
+import { updateCandidateMaster, getCandidateForEdit } from "../controllers/admin/masterADMCandidateEdit.controller";
+
 
 
 const router = Router();
@@ -755,5 +757,11 @@ router.delete('/candidates/selection/:candidateId', async (req, res) => {
 // ++++++++++++++++++++++++Backup Database+++++++++++++++++++++++++++++
 router.get("/database/backup", backupDatabaseJSON);
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// ++++++++++++++++++++++++Master Candidate Edit++++++++++++++++++++++++
+router.get("/master-candidate-edit/:registrationNumber", getCandidateForEdit);
+router.put("/master-candidate-edit/:registrationNumber", updateCandidateMaster);
+// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 export default router;
