@@ -97,7 +97,7 @@ const getChangedData = (oldObj: any, newObj: any) => {
             // Handle Case where one is null/undefined and other is empty string (ignoring superficial differences)
             const oldStr = oldValue === null || oldValue === undefined ? "" : oldValue.toString();
             const newStr = newValue === null || newValue === undefined ? "" : newValue.toString();
-            
+
             if (oldStr !== newStr) {
                 oldDiff[key] = oldValue;
                 newDiff[key] = newValue;
@@ -433,8 +433,8 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         // --- REDESIGNED: Fetch Admission Fee Records from admission2026 ---
         const db = mongoose.connection.useDb('admission2026');
         const appNumbers = candidate.application_preferences?.applications?.map((a: any) => a.application_number) || [];
-        
-        const rawRecords = await db.collection('candidate_fees_master').find({ 
+
+        const rawRecords = await db.collection('candidate_fees_master').find({
             application_number: { $in: appNumbers }
         }).toArray();
 
@@ -443,7 +443,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         const admissionFees = rawRecords.map(f => {
             const isPaid = ['SUCCESS', 'PAID', 'ONLINE_PAID', 'SWIPE_PAID'].includes(f.status);
             let isEligible = f.is_payment_enabled === true && !isPaid;
-            
+
             // If expiry date exists, check it. If null, ignore (as per user request)
             if (isEligible && f.payment_expiry_date) {
                 const expiry = new Date(f.payment_expiry_date);
@@ -624,6 +624,75 @@ export const getAllAdmittedApplications = async (req: Request, res: Response) =>
             }
         ]);
 
+        // Enrich with Transaction Date from fee_collection DB
+        const appNumbers = data.flatMap(candidate =>
+            (candidate.applications || []).map((app: any) => app.application_number)
+        ).filter(Boolean);
+
+        if (appNumbers.length > 0) {
+            const feeCollectionDb = mongoose.connection.useDb("fee_collection");
+            // Include both numbers and strings to handle potential type mismatches in DB
+            const queryAppNumbers = [...new Set([...appNumbers, ...appNumbers.map(n => String(n))])];
+
+            const [admissionFees, swipePayments] = await Promise.all([
+                feeCollectionDb.collection("admission_fees").find({
+                    application_number: { $in: queryAppNumbers },
+                    status: { $in: ["SUCCESS", "Success"] }
+                }).toArray(),
+                feeCollectionDb.collection("swipepayments").find({
+                    application_number: { $in: queryAppNumbers }
+                }).toArray()
+            ]);
+
+            const feeMap = new Map();
+            admissionFees.forEach(f => feeMap.set(String(f.application_number), f));
+
+            const swipeMap = new Map();
+            swipePayments.forEach(s => swipeMap.set(String(s.application_number), s));
+
+            data.forEach(candidate => {
+                if (candidate.applications) {
+                    candidate.applications.forEach((app: any) => {
+                        const appNoStr = String(app.application_number);
+                        const feeRecord = feeMap.get(appNoStr);
+                        const swipeRecord = swipeMap.get(appNoStr);
+
+                        if (feeRecord) {
+                            // Use rawResponse.trans_date format: "09/05/2026 08:02:43"
+                            const transDate = feeRecord.rawResponse?.trans_date;
+                            if (typeof transDate === 'string' && transDate.includes('/')) {
+                                try {
+                                    const [datePart, timePart] = transDate.split(' ');
+                                    const [day, month, year] = datePart.split('/');
+                                    app.ADMITTED_TRANSACTION_DATE = new Date(`${year}-${month}-${day}T${timePart}`);
+                                } catch (e) {
+                                    app.ADMITTED_TRANSACTION_DATE = feeRecord.transaction_date || transDate;
+                                }
+                            } else {
+                                app.ADMITTED_TRANSACTION_DATE = feeRecord.transaction_date;
+                            }
+                            app.payment_method = "ONLINE";
+                        } else if (swipeRecord) {
+                            // Handle DD-MM-YYYY HH:mm:ss format
+                            const dateStr = swipeRecord.transaction_date;
+                            if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                                try {
+                                    const [datePart, timePart] = dateStr.split(' ');
+                                    const [day, month, year] = datePart.split('-');
+                                    app.ADMITTED_TRANSACTION_DATE = new Date(`${year}-${month}-${day}T${timePart}`);
+                                } catch (e) {
+                                    app.ADMITTED_TRANSACTION_DATE = dateStr;
+                                }
+                            } else {
+                                app.ADMITTED_TRANSACTION_DATE = dateStr;
+                            }
+                            app.payment_method = "SWIPE";
+                        }
+                    });
+                }
+            });
+        }
+
         return res.json({
             success: true,
             count: data.length,
@@ -645,7 +714,7 @@ export const getAllSMSSentApplications = async (req: Request, res: Response) => 
         const data = await CandidateAdmission.aggregate([
             {
                 $match: {
-                    "application_preferences.applications.status": "SMS_SENT"
+                    "application_preferences.applications.status": "ADMITTED"
                 }
             },
             {
@@ -659,7 +728,7 @@ export const getAllSMSSentApplications = async (req: Request, res: Response) => 
                         $filter: {
                             input: "$application_preferences.applications",
                             as: "app",
-                            cond: { $eq: ["$$app.status", "SMS_SENT"] }
+                            cond: { $eq: ["$$app.status", "ADMITTED"] }
                         }
                     },
                     metadata: 1
@@ -671,7 +740,76 @@ export const getAllSMSSentApplications = async (req: Request, res: Response) => 
         if (!data || data.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "No applications found with SMS_SENT status"
+                message: "No applications found with ADMITTED status"
+            });
+        }
+
+        // Enrich with Transaction Date from fee_collection DB
+        const appNumbers = data.flatMap(candidate =>
+            (candidate.applications || []).map((app: any) => app.application_number)
+        ).filter(Boolean);
+
+        if (appNumbers.length > 0) {
+            const feeCollectionDb = mongoose.connection.useDb("fee_collection");
+            // Include both numbers and strings to handle potential type mismatches in DB
+            const queryAppNumbers = [...new Set([...appNumbers, ...appNumbers.map(n => String(n))])];
+
+            const [admissionFees, swipePayments] = await Promise.all([
+                feeCollectionDb.collection("admission_fees").find({
+                    application_number: { $in: queryAppNumbers },
+                    status: { $in: ["SUCCESS", "Success"] }
+                }).toArray(),
+                feeCollectionDb.collection("swipepayments").find({
+                    application_number: { $in: queryAppNumbers }
+                }).toArray()
+            ]);
+
+            const feeMap = new Map();
+            admissionFees.forEach(f => feeMap.set(String(f.application_number), f));
+
+            const swipeMap = new Map();
+            swipePayments.forEach(s => swipeMap.set(String(s.application_number), s));
+
+            data.forEach(candidate => {
+                if (candidate.applications) {
+                    candidate.applications.forEach((app: any) => {
+                        const appNoStr = String(app.application_number);
+                        const feeRecord = feeMap.get(appNoStr);
+                        const swipeRecord = swipeMap.get(appNoStr);
+
+                        if (feeRecord) {
+                            // Use rawResponse.trans_date format: "09/05/2026 08:02:43"
+                            const transDate = feeRecord.rawResponse?.trans_date;
+                            if (typeof transDate === 'string' && transDate.includes('/')) {
+                                try {
+                                    const [datePart, timePart] = transDate.split(' ');
+                                    const [day, month, year] = datePart.split('/');
+                                    app.ADMITTED_TRANSACTION_DATE = new Date(`${year}-${month}-${day}T${timePart}`);
+                                } catch (e) {
+                                    app.ADMITTED_TRANSACTION_DATE = feeRecord.transaction_date || transDate;
+                                }
+                            } else {
+                                app.ADMITTED_TRANSACTION_DATE = feeRecord.transaction_date;
+                            }
+                            app.payment_method = "ONLINE";
+                        } else if (swipeRecord) {
+                            // Handle DD-MM-YYYY HH:mm:ss format
+                            const dateStr = swipeRecord.transaction_date;
+                            if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                                try {
+                                    const [datePart, timePart] = dateStr.split(' ');
+                                    const [day, month, year] = datePart.split('-');
+                                    app.ADMITTED_TRANSACTION_DATE = new Date(`${year}-${month}-${day}T${timePart}`);
+                                } catch (e) {
+                                    app.ADMITTED_TRANSACTION_DATE = dateStr;
+                                }
+                            } else {
+                                app.ADMITTED_TRANSACTION_DATE = dateStr;
+                            }
+                            app.payment_method = "SWIPE";
+                        }
+                    });
+                }
             });
         }
 
@@ -2075,7 +2213,7 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
 
         const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
             { registration_number: Number(regId) },
-            { 
+            {
                 $set: {
                     ...updateData,
                     "metadata.last_modified_by": staffid || (req as any).user?.id || 'admin',
@@ -2089,9 +2227,9 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
         // Log the edit
         const staff_id_val = staffid || (req as any).user?.id || 'admin';
         const staff_name_val = staffname || (req as any).user?.name || (req as any).user?.fullName || 'Administrator';
-        
+
         const { oldDiff, newDiff, hasChanges } = getChangedData(oldData, updateData);
-        
+
         if (hasChanges) {
             await EditLog.create({
                 registration_number: Number(regId),
@@ -2115,16 +2253,16 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
         console.error("Error updating basic details:", error);
         if (error.code === 11000) {
             const field = Object.keys(error.keyPattern)[0];
-            return res.status(400).json({ 
-                success: false, 
+            return res.status(400).json({
+                success: false,
                 message: `${field.split('.').pop()} already exists`,
-                field 
+                field
             });
         }
-        return res.status(500).json({ 
-            success: false, 
+        return res.status(500).json({
+            success: false,
             message: "Internal server error",
-            error: error.message 
+            error: error.message
         });
     }
 };

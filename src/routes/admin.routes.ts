@@ -4,6 +4,7 @@ import programsModel from "../models/programs.model";
 import { getApplicationStats } from "../controllers/admin/stats.controller";
 import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
 import { getFullStatistics } from "../controllers/admin/full.stats.controller";
+import { getOverallAdmissionStatistics } from "../controllers/admin/overallAdmissionStatistics.controller";
 import {
   getNotification,
   createNotification,
@@ -25,7 +26,7 @@ const router = Router();
 router.get("/verification/list", async (req: Request, res: Response) => {
   try {
     const { from_date, to_date } = req.query;
-    
+
     const matchConditions: any = {
       "application_preferences.applications.status": {
         $in: ["HOD_SELECTION", "HOD_SELECTION_INTERVIEW", "VERIFIED"]
@@ -213,21 +214,20 @@ router.get(
  * @desc Update single candidate application status
  * @access Public (User data passed in body)
  */
-router.put('/candidates/status/:candidateId', async (req, res) => {
+router.put('/candidates/status/:application_number', async (req, res) => {
   try {
-    const { candidateId } = req.params;
+    const { application_number: paramAppNo } = req.params;
     const {
       status,
       remarks,
       program_code,
-      application_number,
       interviewDate,
       user,
       stream,
       shift
     } = req.body;
 
-    if (!program_code && !application_number) {
+    if (!program_code && !paramAppNo) {
       return res.status(400).json({
         success: false,
         message: 'Program code or Application number is required'
@@ -274,8 +274,11 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
 
 
     const currentDate = new Date();
+    const appNoToSearch = Number(paramAppNo);
 
-    const candidate = await CandidateAdmission.findById(candidateId);
+    const candidate = await CandidateAdmission.findOne({
+      "application_preferences.applications.application_number": appNoToSearch
+    });
 
     if (!candidate) {
       return res.status(404).json({
@@ -293,17 +296,13 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     }
 
     const applicationIndex = candidate.application_preferences.applications.findIndex(
-      app => application_number 
-        ? app.application_number === Number(application_number)
-        : app.program_code === program_code
+      app => app.application_number === appNoToSearch
     );
 
     if (applicationIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: application_number 
-          ? `Application number ${application_number} not found`
-          : `Program code ${program_code} not found`
+        message: `Application number ${appNoToSearch} not found`
       });
     }
 
@@ -312,8 +311,8 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     const originalStream = targetApplication.stream;
 
     // Check if user is HOD
-    const isHOD = user.designation?.toLowerCase().includes('hod') || 
-                  (user.role && (Array.isArray(user.role) ? user.role : [user.role]).some((r: any) => r.toLowerCase().includes('hod')));
+    const isHOD = user.designation?.toLowerCase().includes('hod') ||
+      (user.role && (Array.isArray(user.role) ? user.role : [user.role]).some((r: any) => r.toLowerCase().includes('hod')));
 
     let admissionStream = originalStream;
     let isStreamChanged = false;
@@ -401,7 +400,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     });
 
     const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-      candidateId,
+      candidate._id,
       {
         $set: {
           'application_preferences.applications': updatedApplications,
@@ -420,7 +419,7 @@ router.put('/candidates/status/:candidateId', async (req, res) => {
     }
 
     const updatedApplication = updatedCandidate.application_preferences?.applications?.find(
-      app => app.program_code === program_code
+      app => app.application_number === appNoToSearch
     );
 
     res.status(200).json({
@@ -643,6 +642,7 @@ router.get(
 router.get("/dashboard/stats", getApplicationStats);
 router.get("/dashboard/programme-wise", getProgrammeWiseStats);
 router.get("/dashboard/full-statistics", getFullStatistics);
+router.get("/dashboard/overall-admission-statistics", getOverallAdmissionStatistics);
 // ++++++++++++++++++++++++Site Notification++++++++++++++++++++++++++
 router.get("/adm_site/notification", getNotification);
 router.post("/adm_site/notification", createNotification);
@@ -685,7 +685,7 @@ router.delete('/candidates/selection/:candidateId', async (req, res) => {
 
     const applications = candidate.application_preferences?.applications || [];
     const applicationIndex = applications.findIndex(
-      app => application_number 
+      app => application_number
         ? app.application_number === Number(application_number)
         : app.program_code === program_code
     );
@@ -693,7 +693,7 @@ router.delete('/candidates/selection/:candidateId', async (req, res) => {
     if (applicationIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: application_number 
+        message: application_number
           ? `Application number ${application_number} not found`
           : `Program code ${program_code} not found`
       });
