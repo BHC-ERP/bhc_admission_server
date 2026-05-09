@@ -44,6 +44,7 @@ import {
   getAllHODSelectionApplications,
   getAllVerifySelectionApplications,
   getAllSMSSentApplications,
+  getAllAdmittedApplications,
   BusRouteController,
   HostelController,
   settingsController,
@@ -95,6 +96,7 @@ router.get("/candidate/:registration_number", getcandidatedata);
 router.get("/hod-selection/all/", getAllHODSelectionApplications);
 router.get("/verified-list/all/", getAllVerifySelectionApplications);
 router.get("/sms-sent-list/all/", getAllSMSSentApplications);
+router.get("/admitted-list/all/", getAllAdmittedApplications);
 router.get("/status/:status", getApplicationsByStatus);
 router.get("/all", getAllApplications);
 

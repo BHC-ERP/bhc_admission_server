@@ -600,6 +600,46 @@ export const getAllVerifySelectionApplications = async (req: Request, res: Respo
     }
 };
 
+export const getAllAdmittedApplications = async (req: Request, res: Response) => {
+    try {
+        const data = await CandidateAdmission.aggregate([
+            {
+                $match: {
+                    "application_preferences.applications.status": "ADMITTED"
+                }
+            },
+            {
+                $project: {
+                    registration_number: 1,
+                    personal_details: 1,
+                    academic_background: 1,
+                    applications: {
+                        $filter: {
+                            input: "$application_preferences.applications",
+                            as: "app",
+                            cond: { $eq: ["$$app.status", "ADMITTED"] }
+                        }
+                    }
+                }
+            }
+        ]);
+
+        return res.json({
+            success: true,
+            count: data.length,
+            data: data
+        });
+
+    } catch (error) {
+        console.error("Error fetching admitted candidates:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+};
+
 export const getAllSMSSentApplications = async (req: Request, res: Response) => {
     try {
         const data = await CandidateAdmission.aggregate([
