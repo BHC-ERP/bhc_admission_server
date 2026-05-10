@@ -79,12 +79,21 @@ export const sendSms = async (req: Request, res: Response) => {
         if (application_number) {
             const db = mongoose.connection.useDb('admission2026');
             const isPaymentEnabled = (template_identifier === 'admission_spot' || template_identifier === "fee_sms");
-            
+
+            const updateFields: any = { is_payment_enabled: isPaymentEnabled };
+
+            if (isPaymentEnabled) {
+                const expiryDate = new Date();
+                // Add 2 days to current date
+                expiryDate.setDate(expiryDate.getDate() + 2);
+                updateFields.payment_expiry_date = expiryDate;
+            }
+
             await db.collection('candidate_fees_master').updateOne(
                 { application_number: Number(application_number) },
-                { $set: { is_payment_enabled: isPaymentEnabled } }
+                { $set: updateFields }
             );
-            
+
             console.log(`[SMS] Payment ${isPaymentEnabled ? 'ENABLED' : 'DISABLED'} for app ${application_number} (Template: ${template_identifier})`);
         }
 
