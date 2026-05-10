@@ -12,13 +12,14 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
     try {
         const academic_year = "2026-2027";
 
-        // 1. Get all programs to ensure we cover everything
-        const programs = await programsModel.find({ show: true }).lean();
+        // 1. Prepare independent queries to run concurrently
+        const programsPromise = programsModel.find({ show: true }).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
 
         // 2. Aggregate from candidateadmissions
-        const candidateStats = await CandidateAdmission.aggregate([
+        const candidateStatsPromise = CandidateAdmission.aggregate([
             { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
             { $unwind: "$application_preferences.applications" },
+            { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
             {
                 $group: {
                     _id: {
@@ -59,9 +60,10 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         ]);
 
         // 2b. Aggregate applied apps from candidate admissions
-        const appliedStats = await CandidateAdmission.aggregate([
+        const appliedStatsPromise = CandidateAdmission.aggregate([
             { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
             { $unwind: "$application_preferences.applications" },
+            { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
             {
                 $group: {
                     _id: {
@@ -74,75 +76,21 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             }
         ]);
 
-        // 3. Aggregate from candidate_fees_master
-        const admission2026Db = mongoose.connection.useDb("admission2026");
-        const feesMasterColl = admission2026Db.collection("candidate_fees_master");
+        // 3. Get successful application numbers from fee_collection DB
+        const feeCollectionDb = mongoose.connection.useDb("fee_collection");
+        const admissionFeesPromise = feeCollectionDb.collection("admission_fees").distinct("application_number", {
+            status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
+        });
+        const swipePaymentsPromise = feeCollectionDb.collection("swipepayments").distinct("application_number", {
+            status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
+        });
 
-        const feesMasterStats = await feesMasterColl.aggregate([
-            { $match: { academic_year } },
-            {
-                $group: {
-                    _id: {
-                        program_code: "$program_code",
-                        stream: "$stream",
-                        shift: { $ifNull: ["$shift", "Shift-1"] }
-                    },
-                    interview_sms_apps: {
-                        $addToSet: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $eq: ["$status", "PENDING"] },
-                                        { $eq: ["$is_payment_enabled", false] }
-                                    ]
-                                },
-                                "$application_number",
-                                "$$REMOVE"
-                            ]
-                        }
-                    },
-                    payment_sms_apps: {
-                        $addToSet: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $eq: ["$status", "PENDING"] },
-                                        { $eq: ["$is_payment_enabled", true] }
-                                    ]
-                                },
-                                "$application_number",
-                                "$$REMOVE"
-                            ]
-                        }
-                    },
-                    paid_admitted_apps: {
-                        $addToSet: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $eq: ["$status", "SUCCESS"] },
-                                        { $eq: ["$is_payment_enabled", true] }
-                                    ]
-                                },
-                                "$application_number",
-                                "$$REMOVE"
-                            ]
-                        }
-                    }
-                }
-            }
-        ]).toArray();
-
-
-        // 3a. Aggregate SMS sent apps from candidate admissions
-        const smsSentStats = await CandidateAdmission.aggregate([
+        // 3a. Redesigned SMS sent stats based on verified Compass logic
+        const smsSentStatsPromise = CandidateAdmission.aggregate([
             { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
             { $unwind: "$application_preferences.applications" },
-            {
-                $match: {
-                    "application_preferences.applications.sms_history": { $exists: true, $ne: [] }
-                }
-            },
+            { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
+            { $unwind: "$application_preferences.applications.sms_history" },
             {
                 $group: {
                     _id: {
@@ -150,10 +98,104 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                         stream: "$application_preferences.applications.stream",
                         shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
                     },
-                    sms_sent_apps: { $addToSet: "$application_preferences.applications.application_number" }
+                    payment_sms_count: {
+                        $sum: {
+                            $cond: [
+                                { $in: ["$application_preferences.applications.sms_history.template_identifier", ["fee_sms", "admission_spot"]] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    interview_sms_count: {
+                        $sum: {
+                            $cond: [
+                                { $in: ["$application_preferences.applications.sms_history.template_identifier", ["others_interview", "mba_mca", "ug_interview"]] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    hostel_sms_count: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$application_preferences.applications.sms_history.template_identifier", "hostel_admission_sms"] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    other_sms_count: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $not: { $in: ["$application_preferences.applications.sms_history.template_identifier", ["others_interview", "mba_mca", "ug_interview", "fee_sms", "admission_spot", "hostel_admission_sms"]] } },
+                                        { $ne: ["$application_preferences.applications.sms_history.template_identifier", null] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    payment_sms_count: 1,
+                    interview_sms_count: 1,
+                    hostel_sms_count: 1,
+                    other_sms_count: 1
                 }
             }
         ]);
+
+        // Wait for all independent queries
+        const [
+            programs,
+            candidateStats,
+            appliedStats,
+            admissionFees,
+            swipePayments,
+            smsSentStats
+        ] = await Promise.all([
+            programsPromise,
+            candidateStatsPromise,
+            appliedStatsPromise,
+            admissionFeesPromise,
+            swipePaymentsPromise,
+            smsSentStatsPromise
+        ]);
+
+        const paidAppNumbers = new Set([
+            ...admissionFees.map(val => Number(val)),
+            ...swipePayments.map(val => Number(val))
+        ].filter(val => val && !isNaN(val)));
+
+        // 3b. Lookup metadata (program, stream, shift) from candidate_fees_master for these paid applications
+        const admission2026Db = mongoose.connection.useDb("admission2026");
+        const paidAppArray = Array.from(paidAppNumbers);
+        const paidMetadata = await admission2026Db.collection("candidate_fees_master").find(
+            {
+                $or: [
+                    { application_number: { $in: paidAppArray } },
+                    { application_number: { $in: paidAppArray.map(String) } }
+                ]
+            },
+            { projection: { application_number: 1, program_code: 1, stream: 1, shift: 1 } }
+        ).toArray();
+
+        // Group paid counts by the metadata from fees master
+        const paidStatsMap: Record<string, Set<number>> = {};
+        paidMetadata.forEach(m => {
+            const shift = m.shift || "Shift-1";
+            const key = `${m.program_code}_${m.stream}_${shift}`;
+            if (!paidStatsMap[key]) paidStatsMap[key] = new Set();
+            paidStatsMap[key].add(m.application_number);
+        });
+
         // 4. Combine results into a unified map
         const programMap: Record<string, any> = {};
 
@@ -172,8 +214,10 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     applied_set: new Set(),
                     hod_selection_set: new Set(),
                     verified_set: new Set(),
-                    interview_sms_set: new Set(),
-                    sms_sent_set: new Set(),
+                    interview_sms_count: 0,
+                    sms_sent_count: 0,
+                    hostel_sms_count: 0,
+                    other_sms_count: 0,
                     admitted_set: new Set()
                 };
             }
@@ -185,7 +229,13 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             if (programMap[key]) {
                 stat.hod_selection_apps.forEach((app: any) => programMap[key].hod_selection_set.add(app));
                 stat.verified_apps.forEach((app: any) => programMap[key].verified_set.add(app));
-                stat.admitted_apps.forEach((app: any) => programMap[key].admitted_set.add(app));
+            }
+        });
+
+        // Add Paid stats from the fees master lookup
+        Object.entries(paidStatsMap).forEach(([key, appNumbers]) => {
+            if (programMap[key]) {
+                appNumbers.forEach(app => programMap[key].admitted_set.add(app));
             }
         });
 
@@ -193,7 +243,10 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         smsSentStats.forEach(stat => {
             const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
             if (programMap[key]) {
-                stat.sms_sent_apps.forEach((app: any) => programMap[key].sms_sent_set.add(app));
+                programMap[key].sms_sent_count += stat.payment_sms_count || 0;
+                programMap[key].interview_sms_count += stat.interview_sms_count || 0;
+                programMap[key].hostel_sms_count += stat.hostel_sms_count || 0;
+                programMap[key].other_sms_count += stat.other_sms_count || 0;
             }
         });
 
@@ -202,16 +255,6 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
             if (programMap[key]) {
                 stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
-            }
-        });
-
-        // Add fees master stats
-        feesMasterStats.forEach(stat => {
-            const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
-            if (programMap[key]) {
-                stat.interview_sms_apps.forEach((app: any) => programMap[key].interview_sms_set.add(app));
-                // stat.payment_sms_apps.forEach((app: any) => programMap[key].sms_sent_set.add(app));
-                stat.paid_admitted_apps.forEach((app: any) => programMap[key].admitted_set.add(app));
             }
         });
 
@@ -229,8 +272,10 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                 applied: p.applied_set.size,
                 hod_selection: p.hod_selection_set.size,
                 verified: p.verified_set.size,
-                interview_sms: p.interview_sms_set.size,
-                sms_sent: p.sms_sent_set.size,
+                interview_sms: p.interview_sms_count,
+                sms_sent: p.sms_sent_count,
+                hostel_sms: p.hostel_sms_count,
+                others_sms: p.other_sms_count,
                 admitted: admittedCount,
                 seats_left: Math.max(0, sanctioned - admittedCount)
             };
