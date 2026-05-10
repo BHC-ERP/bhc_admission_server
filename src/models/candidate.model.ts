@@ -416,6 +416,13 @@ const CandidateSchema = new mongoose.Schema({
                     'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
             },
             selected: [{
+                is_other_application: {
+                    type: Boolean,
+                    default: false
+                },
+                selected_ot_programcode: String,
+                selected_ot_program_name: String,
+                selected_ot_stream: String,
                 selected_by: {
                     selected_stream: String,
                     staff_id: String,

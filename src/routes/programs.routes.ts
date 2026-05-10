@@ -27,8 +27,12 @@ router.get("/visibility", async (req, res) => {
     const visibility = await departmentVisibilityModel.find().lean();
     // Convert array to Record<string, any>
     const mapping = visibility.reduce((acc: any, curr: any) => {
-      acc[curr.department_code] = {
+      const key = `${curr.department_code}_${curr.stream}`;
+      acc[key] = {
+        department_code: curr.department_code,
+        stream: curr.stream,
         allowed_departments: curr.allowed_departments,
+        allowed_stream: curr.allowed_stream,
         max_percentage: curr.max_percentage || null
       };
       return acc;
@@ -45,11 +49,11 @@ router.get("/visibility", async (req, res) => {
 
 // Update department visibility mapping
 router.post("/visibility", async (req, res) => {
-  const { department_code, allowed_departments, max_percentage } = req.body;
+  const { department_code, stream, allowed_departments, allowed_stream, max_percentage } = req.body;
   try {
     const updated = await departmentVisibilityModel.findOneAndUpdate(
-      { department_code },
-      { allowed_departments, max_percentage },
+      { department_code, stream },
+      { allowed_departments, allowed_stream, max_percentage },
       { upsert: true, new: true }
     );
     return res.json({
@@ -62,9 +66,9 @@ router.post("/visibility", async (req, res) => {
 });
 
 // Delete department visibility mapping
-router.delete("/visibility/:department_code", async (req, res) => {
+router.delete("/visibility/:department_code/:stream", async (req, res) => {
   try {
-    await departmentVisibilityModel.findOneAndDelete({ department_code: req.params.department_code });
+    await departmentVisibilityModel.findOneAndDelete({ department_code: req.params.department_code, stream: req.params.stream });
     return res.json({
       success: true,
       message: "Visibility mapping deleted"
