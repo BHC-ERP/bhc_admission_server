@@ -1,4 +1,5 @@
 import { Request, Response, Router } from "express";
+import mongoose from "mongoose";
 import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
 import { getApplicationStats } from "../controllers/admin/stats.controller";
@@ -13,6 +14,7 @@ import {
 } from "../controllers/admin/notification.controller";
 import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
 import { updateCandidateMaster, getCandidateForEdit } from "../controllers/admin/masterADMCandidateEdit.controller";
+import { connectDB } from "../config/database";
 
 
 
@@ -231,7 +233,9 @@ router.put('/candidates/status/:application_number', async (req, res) => {
       interviewDate,
       user,
       stream,
-      shift
+      shift,
+      isOtherApplication,
+      program_name
     } = req.body;
 
     if (!program_code && !paramAppNo) {
@@ -317,16 +321,54 @@ router.put('/candidates/status/:application_number', async (req, res) => {
 
     const originalStream = targetApplication.stream;
 
-    // Check if user is HOD
-    const isHOD = user.designation?.toLowerCase().includes('hod') ||
-      (user.role && (Array.isArray(user.role) ? user.role : [user.role]).some((r: any) => r.toLowerCase().includes('hod')));
+    // 1. Map Stream and Shift from radio button (user.shift)
+    let mappedStream = stream;
+    let mappedShift = shift;
 
-    let admissionStream = originalStream;
-    let isStreamChanged = false;
+    if (user.shift === 'Aided') {
+      mappedStream = 'Aided';
+      mappedShift = 'Shift-1';
+    } else if (user.shift === 'SF-Shift-1') {
+      mappedStream = 'Self-Finance';
+      mappedShift = 'Shift-1';
+    } else if (user.shift === 'SF-Shift-2') {
+      mappedStream = 'Self-Finance';
+      mappedShift = 'Shift-2';
+    }
 
-    if (isHOD && stream && stream !== originalStream) {
-      admissionStream = stream;
-      isStreamChanged = true;
+    let admissionStream = mappedStream || originalStream;
+    let isStreamChanged = admissionStream !== originalStream;
+
+    // 2. Resolve OT Program details for Other Applications
+    let otProgramCode = program_code;
+    let otProgramName = program_name;
+
+    if (isOtherApplication) {
+      const hodDeptCode = user.department_code || user.department;
+      if (hodDeptCode) {
+        // Try to find program matching HOD's dept, candidate's degree type, and selected stream/shift
+        const hodProgram = await programsModel.findOne({
+          department_code: hodDeptCode.toUpperCase(),
+          program_type: candidate.appliedProgrammeType,
+          stream: admissionStream,
+          shift: mappedShift
+        });
+
+        if (hodProgram) {
+          otProgramCode = hodProgram.program_code;
+          otProgramName = hodProgram.program_name;
+        } else {
+          // Fallback to any program in HOD's dept matching the degree type (UG/PG)
+          const fallbackProgram = await programsModel.findOne({
+            department_code: hodDeptCode.toUpperCase(),
+            program_type: candidate.appliedProgrammeType
+          });
+          if (fallbackProgram) {
+            otProgramCode = fallbackProgram.program_code;
+            otProgramName = fallbackProgram.program_name;
+          }
+        }
+      }
     }
 
     const updatedApplications = candidate.application_preferences.applications.map((app, index) => {
@@ -338,7 +380,7 @@ router.put('/candidates/status/:application_number', async (req, res) => {
 
           status: status,
           stream: admissionStream,
-          shift: shift || app.shift,
+          shift: mappedShift || app.shift,
           original_stream: isStreamChanged ? originalStream : undefined,
 
           staff_id: user.staff_id,
@@ -352,13 +394,19 @@ router.put('/candidates/status/:application_number', async (req, res) => {
           selected: [
             ...(app.selected || []),
             {
+              is_other_application: isOtherApplication || false,
+              selected_ot_programcode: isOtherApplication ? otProgramCode : undefined,
+              selected_ot_program_name: isOtherApplication ? otProgramName : undefined,
+              selected_ot_stream: isOtherApplication ? admissionStream : undefined,
               selected_by: {
                 staff_id: user.staff_id,
                 staff_name: user.name,
                 department: user.department_code || user.department,
                 designation: user.designation,
+                selected_program_code: isOtherApplication ? otProgramCode : app.program_code,
+                selected_program_name: isOtherApplication ? otProgramName : app.program_name,
                 selected_stream: admissionStream,
-                selected_shift: shift || app.shift
+                selected_shift: mappedShift || app.shift
               },
               selection_date: currentDate,
               selection_remarks: remarks || '',
@@ -572,13 +620,13 @@ router.get(
       if (selectedApplications.length === 0) {
         return res.status(200).json({
           success: true,
-          program: {
+          program: program ? {
             program_code: program.program_code,
             program_name: program.program_name,
             department_name: program.department_name,
             stream: program.stream,
             shift: program.shift
-          },
+          } : { program_code: programCode, program_name: 'Unknown' },
           filters_applied: {
             from_date: from_date || null,
             to_date: to_date || null,
@@ -618,13 +666,13 @@ router.get(
 
       return res.status(200).json({
         success: true,
-        program: {
+        program: program ? {
           program_code: program.program_code,
           program_name: program.program_name,
           department_name: program.department_name,
           stream: program.stream,
           shift: program.shift
-        },
+        } : { program_code: programCode, program_name: 'Unknown' },
         filters_applied: {
           from_date: from_date || null,
           to_date: to_date || null,
@@ -645,6 +693,128 @@ router.get(
   }
 );
 
+router.get(
+  "/applications/other-selections/:programCode/:stream",
+  async (req: Request, res: Response) => {
+    try {
+      const { programCode, stream } = req.params;
+      const { from_date, to_date } = req.query;
+
+      const selectedApplications = await CandidateAdmission.aggregate([
+        // Step 1: Unwind applications array
+        { $unwind: "$application_preferences.applications" },
+
+        // Step 2: Unwind selected array to filter individual elements
+        { $unwind: "$application_preferences.applications.selected" },
+
+        // Step 3: Match only is_other_application: true entries
+        {
+          $match: {
+            "application_preferences.applications.selected.is_other_application": true,
+            ...(programCode !== "all" && {
+              "application_preferences.applications.selected.selected_ot_programcode": programCode,
+            }),
+            ...(stream !== "all" && {
+              "application_preferences.applications.selected.selected_ot_stream": stream,
+            }),
+            ...(from_date || to_date
+              ? {
+                  "application_preferences.applications.selected.selection_date": {
+                    ...(from_date && { $gte: new Date(from_date as string) }),
+                    ...(to_date && { $lte: new Date(to_date as string) }),
+                  },
+                }
+              : {}),
+          },
+        },
+
+        // Step 4: Group back — one doc per candidate+application with matched selections
+        {
+          $group: {
+            _id: {
+              candidate_id: "$_id",
+              application_number:
+                "$application_preferences.applications.application_number",
+            },
+            registration_number: { $first: "$registration_number" },
+            personal_details: { $first: "$personal_details" },
+            academic_background: { $first: "$academic_background" },
+            payment: { $first: "$payment" },
+            metadata: { $first: "$metadata" },
+            hostel_required: { $first: "$hostel_required" },
+            transport_required: { $first: "$transport_required" },
+            application_info: {
+              $first: {
+                application_number:
+                  "$application_preferences.applications.application_number",
+                application_type:
+                  "$application_preferences.applications.application_type",
+                stream: "$application_preferences.applications.stream",
+                program_code:
+                  "$application_preferences.applications.program_code",
+                program_name:
+                  "$application_preferences.applications.program_name",
+                shift: "$application_preferences.applications.shift",
+                preference_order:
+                  "$application_preferences.applications.preference_order",
+                status: "$application_preferences.applications.status",
+              },
+            },
+            // Collect all matched selected entries back into array
+            matched_selections: {
+              $push: "$application_preferences.applications.selected",
+            },
+          },
+        },
+
+        // Step 5: Add latest selection date for sorting
+        {
+          $addFields: {
+            latest_selection_date: {
+              $max: "$matched_selections.selection_date",
+            },
+          },
+        },
+
+        // Step 6: Sort by latest selection date descending
+        { $sort: { latest_selection_date: -1 } },
+
+        // Step 7: Clean up final shape
+        {
+          $project: {
+            _id: "$_id.candidate_id",
+            registration_number: 1,
+            personal_details: 1,
+            academic_background: 1,
+            payment: 1,
+            metadata: 1,
+            hostel_required: 1,
+            transport_required: 1,
+            application: {
+              $mergeObjects: [
+                "$application_info",
+                { selected: "$matched_selections" },
+              ],
+            },
+            latest_selection_date: 1,
+          },
+        },
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        total_selected: selectedApplications.length,
+        data: selectedApplications,
+      });
+    } catch (error) {
+      console.error("Error fetching other selections:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Server Error while fetching other selections",
+      });
+    }
+  }
+);
 
 router.get("/dashboard/stats", getApplicationStats);
 router.get("/dashboard/programme-wise", getProgrammeWiseStats);
@@ -770,5 +940,69 @@ router.get("/master-candidate-edit/:registrationNumber", getCandidateForEdit);
 router.put("/master-candidate-edit/:registrationNumber", updateCandidateMaster);
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+
+//check the payment enable false 
+
+router.get('/payment/initiate/false', async (req, res) => {
+  try {
+    const admissions = await CandidateAdmission.aggregate([
+      { $unwind: "$application_preferences.applications" },
+      {
+        $match: {
+          "application_preferences.applications.sms_history": { $exists: true, $ne: [] },
+          "application_preferences.applications.sms_history.template_identifier": {
+            $in: ["fee_sms", "admission_spot"]
+          }
+        }
+      },
+      {
+        $project: {
+          application_number: "$application_preferences.applications.application_number",
+        }
+      }
+    ]);
+
+    const applicationNumbers = admissions.map(a => a.application_number);
+
+    if (applicationNumbers.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No matching admissions found",
+        data: []
+      });
+    }
+
+    const db = mongoose.connection.db;
+    if (!db) throw new Error("Database connection not established");
+
+    const updateResult = await db.collection("candidate_fees_master").updateMany(
+      {
+        application_number: { $in: applicationNumbers },
+        status: "PENDING",
+        is_payment_enabled: false
+      },
+      {
+        $set: {
+          is_payment_enabled: true,
+          payment_expiry_date: new Date("2026-05-13T00:00:00.000Z")
+        }
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      matched: updateResult.matchedCount,
+      updated: updateResult.modifiedCount,
+    });
+
+  } catch (error: any) {
+    console.error("Error in /payment/initiate/false:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+});
 
 export default router;
