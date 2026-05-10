@@ -145,6 +145,12 @@ router.get(
       const applications = await CandidateAdmission.aggregate([
 
         {
+          $addFields: {
+            all_applications: "$application_preferences.applications"
+          }
+        },
+
+        {
           $unwind: "$application_preferences.applications"
         },
 
@@ -164,7 +170,8 @@ router.get(
             academic_background: 1,
             category_and_facilities: 1,
             documents: 1,
-            applications: "$application_preferences.applications"
+            applications: "$application_preferences.applications",
+            all_applications: 1
           }
         }
 

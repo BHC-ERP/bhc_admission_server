@@ -6,7 +6,11 @@ const DepartmentVisibilitySchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-    allowed_departments: [String]
+    allowed_departments: [String],
+    max_percentage: {
+        type: Number,
+        default: null
+    }
 }, { timestamps: true });
 
 export default mongoose.model("DepartmentVisibility", DepartmentVisibilitySchema);

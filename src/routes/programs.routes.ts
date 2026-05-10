@@ -25,9 +25,12 @@ router.get("/", async (req, res) => {
 router.get("/visibility", async (req, res) => {
   try {
     const visibility = await departmentVisibilityModel.find().lean();
-    // Convert array to Record<string, string[]>
+    // Convert array to Record<string, any>
     const mapping = visibility.reduce((acc: any, curr: any) => {
-      acc[curr.department_code] = curr.allowed_departments;
+      acc[curr.department_code] = {
+        allowed_departments: curr.allowed_departments,
+        max_percentage: curr.max_percentage || null
+      };
       return acc;
     }, {});
     
@@ -42,11 +45,11 @@ router.get("/visibility", async (req, res) => {
 
 // Update department visibility mapping
 router.post("/visibility", async (req, res) => {
-  const { department_code, allowed_departments } = req.body;
+  const { department_code, allowed_departments, max_percentage } = req.body;
   try {
     const updated = await departmentVisibilityModel.findOneAndUpdate(
       { department_code },
-      { allowed_departments },
+      { allowed_departments, max_percentage },
       { upsert: true, new: true }
     );
     return res.json({
