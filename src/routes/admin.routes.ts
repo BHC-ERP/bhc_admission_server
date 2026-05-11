@@ -719,11 +719,11 @@ router.get(
             }),
             ...(from_date || to_date
               ? {
-                  "application_preferences.applications.selected.selection_date": {
-                    ...(from_date && { $gte: new Date(from_date as string) }),
-                    ...(to_date && { $lte: new Date(to_date as string) }),
-                  },
-                }
+                "application_preferences.applications.selected.selection_date": {
+                  ...(from_date && { $gte: new Date(from_date as string) }),
+                  ...(to_date && { $lte: new Date(to_date as string) }),
+                },
+              }
               : {}),
           },
         },
