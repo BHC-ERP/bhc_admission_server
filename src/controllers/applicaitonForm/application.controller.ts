@@ -444,9 +444,11 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
             const isPaid = ['SUCCESS', 'PAID', 'ONLINE_PAID', 'SWIPE_PAID'].includes(f.status);
             let isEligible = f.is_payment_enabled === true && !isPaid;
 
-            // If expiry date exists, check it. If null, ignore (as per user request)
+            // If expiry date exists, check it. Normalize to end of day (23:59:59.999) 
+            // to ensure it remains active throughout the expiry day.
             if (isEligible && f.payment_expiry_date) {
                 const expiry = new Date(f.payment_expiry_date);
+                expiry.setHours(23, 59, 59, 999);
                 if (now > expiry) isEligible = false;
             }
 
@@ -454,6 +456,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
                 application_number: f.application_number,
                 program_code: f.program_code,
                 stream: f.stream,
+                shift: f.shift,
                 total_amount: f.total_amount,
                 status: f.status,
                 is_payment_enabled: isEligible, // Final resolved eligibility
