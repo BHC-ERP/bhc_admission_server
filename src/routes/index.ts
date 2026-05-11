@@ -12,6 +12,7 @@ import visitRoutes from "./visitor.routes";
 import transactionRoutes from "./transaction.routes";
 import automationRoutes from "./automation.routes";
 import smsRoutes from "./sms.routes";
+import transferRoutes from "./transfer.routes";
 
 const router = Router();
 
@@ -28,4 +29,5 @@ router.use("/visitor", visitorRoutes);
 router.use("/transactions", transactionRoutes);
 router.use("/automation", automationRoutes);
 router.use("/sms-templates", smsRoutes);
+router.use("/transfer", transferRoutes);
 export default router;
