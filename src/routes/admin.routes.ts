@@ -14,6 +14,8 @@ import {
 } from "../controllers/admin/notification.controller";
 import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
 import { updateCandidateMaster, getCandidateForEdit } from "../controllers/admin/masterADMCandidateEdit.controller";
+import { getAdmittedCommunityReport } from "../controllers/admin/communityReport.controller";
+import { getHostelRequiredAdmittedList, selectCandidateForHostel } from "../controllers/admin/hostelAdmission.controller";
 import { connectDB } from "../config/database";
 
 
@@ -820,6 +822,11 @@ router.get("/dashboard/stats", getApplicationStats);
 router.get("/dashboard/programme-wise", getProgrammeWiseStats);
 router.get("/dashboard/full-statistics", getFullStatistics);
 router.get("/dashboard/overall-admission-statistics", getOverallAdmissionStatistics);
+router.get("/dashboard/admitted-community-report", getAdmittedCommunityReport);
+
+// Hostel Admission Routes
+router.get("/hostel/required-list", getHostelRequiredAdmittedList);
+router.post("/hostel/select", selectCandidateForHostel);
 // ++++++++++++++++++++++++Site Notification++++++++++++++++++++++++++
 router.get("/adm_site/notification", getNotification);
 router.post("/adm_site/notification", createNotification);
