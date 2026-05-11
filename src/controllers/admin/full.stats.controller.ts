@@ -313,7 +313,17 @@ export const getFullStatistics = async (req: Request, res: Response) => {
         /* ============================================================
            7. GLOBAL TOTALS
         ============================================================ */
-        const totalRegistered = await CandidateAdmission.countDocuments({ academic_year });
+        const totalRegistered = await CandidateAdmission.aggregate([
+            {
+                $project: {
+                    registration_number: 1,
+                    totalApplications: {
+                        $size: "$application_preferences.applications"
+                    }
+                }
+            }
+        ]);
+
 
         const globalSMSAgg = await CandidateAdmission.aggregate([
             { $match: { academic_year } },
