@@ -17,7 +17,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
 
         // 2. Aggregate from candidateadmissions
         const candidateStatsPromise = CandidateAdmission.aggregate([
-            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
+            { $match: { academic_year } },
             { $unwind: "$application_preferences.applications" },
             { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
             {
@@ -59,11 +59,10 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             }
         ]);
 
-        // 2b. Aggregate applied apps from candidate admissions
+        // 2b. Aggregate applied & draft apps from candidate admissions
         const appliedStatsPromise = CandidateAdmission.aggregate([
-            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
+            { $match: { academic_year } },
             { $unwind: "$application_preferences.applications" },
-            { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
             {
                 $group: {
                     _id: {
@@ -71,7 +70,24 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                         stream: "$application_preferences.applications.stream",
                         shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
                     },
-                    applied_apps: { $addToSet: "$application_preferences.applications.application_number" }
+                    applied_apps: {
+                        $addToSet: {
+                            $cond: [
+                                { $ne: ["$application_preferences.applications.status", "Draft"] },
+                                "$application_preferences.applications.application_number",
+                                "$$REMOVE"
+                            ]
+                        }
+                    },
+                    draft_apps: {
+                        $addToSet: {
+                            $cond: [
+                                { $eq: ["$application_preferences.applications.status", "Draft"] },
+                                "$application_preferences.applications.application_number",
+                                "$$REMOVE"
+                            ]
+                        }
+                    }
                 }
             }
         ]);
@@ -85,9 +101,9 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
         });
 
-        // 3a. Redesigned SMS sent stats based on verified Compass logic
+        // 3a. Redesigned SMS sent stats
         const smsSentStatsPromise = CandidateAdmission.aggregate([
-            { $match: { academic_year, "admission_status.current": { $ne: "Draft" } } },
+            { $match: { academic_year } },
             { $unwind: "$application_preferences.applications" },
             { $match: { "application_preferences.applications.status": { $ne: "Draft" } } },
             { $unwind: "$application_preferences.applications.sms_history" },
@@ -212,6 +228,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     department: p.department_name,
                     sanctioned_strength: p.sanctioned_strength || 0,
                     applied_set: new Set(),
+                    draft_set: new Set(),
                     hod_selection_set: new Set(),
                     verified_set: new Set(),
                     interview_sms_count: 0,
@@ -250,11 +267,16 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             }
         });
 
-        // Add applied stats
+        // Add applied & draft stats
         appliedStats.forEach(stat => {
             const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
             if (programMap[key]) {
-                stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
+                if (stat.applied_apps) {
+                    stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
+                }
+                if (stat.draft_apps) {
+                    stat.draft_apps.forEach((app: any) => programMap[key].draft_set.add(app));
+                }
             }
         });
 
@@ -270,6 +292,8 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                 department: p.department,
                 sanctioned_strength: sanctioned,
                 applied: p.applied_set.size,
+                draft: p.draft_set.size,
+                total_applied: p.applied_set.size + p.draft_set.size,
                 hod_selection: p.hod_selection_set.size,
                 verified: p.verified_set.size,
                 interview_sms: p.interview_sms_count,
@@ -296,3 +320,4 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         });
     }
 };
+
