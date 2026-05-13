@@ -13,7 +13,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         const academic_year = "2026-2027";
 
         // 1. Prepare independent queries to run concurrently
-        const programsPromise = programsModel.find({ show: true }).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
+        const programsPromise = programsModel.find({ }).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
 
         // 2. Aggregate from candidateadmissions
         const candidateStatsPromise = CandidateAdmission.aggregate([
