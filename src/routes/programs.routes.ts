@@ -11,7 +11,7 @@ const router = Router();
 router.get("/", async (req, res) => {
   const programs = await programsModel
     .find({ show: true })
-    .select("program_code program_name program_type type department_code department_name stream eligibility_description eligibility_subjects  special show cutoff")
+    .select("program_code program_name program_type type department_code department_name stream eligibility_description eligibility_subjects is_filled special show cutoff")
     .sort({ program_name: 1 })
     .lean();
 
@@ -37,7 +37,7 @@ router.get("/visibility", async (req, res) => {
       };
       return acc;
     }, {});
-    
+
     return res.json({
       success: true,
       data: mapping

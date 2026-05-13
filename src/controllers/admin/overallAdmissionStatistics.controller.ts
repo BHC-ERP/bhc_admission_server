@@ -11,9 +11,14 @@ import programsModel from "../../models/programs.model";
 export const getOverallAdmissionStatistics = async (req: Request, res: Response) => {
     try {
         const academic_year = "2026-2027";
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const ADMITTED_STATUSES = ["ADMITTED", "ADMIT_FINAL", "ADMIT"];
+
+        const admission2026Db = mongoose.connection.useDb("admission2026");
 
         // 1. Prepare independent queries to run concurrently
-        const programsPromise = programsModel.find({ }).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
+        const programsPromise = programsModel.find({}).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
 
         // 2. Aggregate from candidateadmissions
         const candidateStatsPromise = CandidateAdmission.aggregate([
@@ -49,7 +54,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     admitted_apps: {
                         $addToSet: {
                             $cond: [
-                                { $in: ["$application_preferences.applications.status", ["ADMITTED", "ADMIT_FINAL", "ADMIT"]] },
+                                { $in: ["$application_preferences.applications.status", ADMITTED_STATUSES] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -100,6 +105,18 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         const swipePaymentsPromise = feeCollectionDb.collection("swipepayments").distinct("application_number", {
             status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
         });
+
+        // Live Count logic: After 6 PM IST, check for expiry > today. Before 6 PM, check for expiry >= today.
+        const now = new Date();
+        const istHour = parseInt(new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata',
+            hour: 'numeric',
+            hour12: false
+        }).format(now));
+
+        const liveSmsValidPromise = admission2026Db.collection("candidate_fees_master").find({
+            payment_expiry_date: istHour >= 18 ? { $gt: startOfToday } : { $gte: startOfToday }
+        }, { projection: { application_number: 1, program_code: 1, stream: 1, shift: 1 } }).toArray();
 
         // 3a. Redesigned SMS sent stats
         const smsSentStatsPromise = CandidateAdmission.aggregate([
@@ -175,14 +192,16 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             appliedStats,
             admissionFees,
             swipePayments,
-            smsSentStats
+            smsSentStats,
+            liveSmsValidApps
         ] = await Promise.all([
             programsPromise,
             candidateStatsPromise,
             appliedStatsPromise,
             admissionFeesPromise,
             swipePaymentsPromise,
-            smsSentStatsPromise
+            smsSentStatsPromise,
+            liveSmsValidPromise
         ]);
 
         const paidAppNumbers = new Set([
@@ -191,7 +210,6 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         ].filter(val => val && !isNaN(val)));
 
         // 3b. Lookup metadata (program, stream, shift) from candidate_fees_master for these paid applications
-        const admission2026Db = mongoose.connection.useDb("admission2026");
         const paidAppArray = Array.from(paidAppNumbers);
         const paidMetadata = await admission2026Db.collection("candidate_fees_master").find(
             {
@@ -235,6 +253,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     sms_sent_count: 0,
                     hostel_sms_count: 0,
                     other_sms_count: 0,
+                    live_valid_sms_set: new Set(),
                     admitted_set: new Set()
                 };
             }
@@ -253,6 +272,15 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         Object.entries(paidStatsMap).forEach(([key, appNumbers]) => {
             if (programMap[key]) {
                 appNumbers.forEach(app => programMap[key].admitted_set.add(app));
+            }
+        });
+
+        // Add live SMS valid apps
+        liveSmsValidApps.forEach((app: any) => {
+            const shift = app.shift || "Shift-1";
+            const key = `${app.program_code}_${app.stream}_${shift}`;
+            if (programMap[key]) {
+                programMap[key].live_valid_sms_set.add(app.application_number);
             }
         });
 
@@ -298,10 +326,11 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                 verified: p.verified_set.size,
                 interview_sms: p.interview_sms_count,
                 sms_sent: p.sms_sent_count,
+                live_valid_sms_count: Array.from(p.live_valid_sms_set).filter(app => !p.admitted_set.has(app)).length,
                 hostel_sms: p.hostel_sms_count,
                 others_sms: p.other_sms_count,
                 admitted: admittedCount,
-                seats_left: Math.max(0, sanctioned - admittedCount)
+                seats_left: sanctioned - admittedCount
             };
         }).sort((a: any, b: any) =>
             a.program_name.localeCompare(b.program_name) || a.shift.localeCompare(b.shift)

@@ -20,6 +20,8 @@ export const getFullStatistics = async (req: Request, res: Response) => {
         /* ============================================================
            2. AGGREGATE CANDIDATE DATA
         ============================================================ */
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
         const statsAggregation = await CandidateAdmission.aggregate([
             { $match: { academic_year } },
             { $unwind: "$application_preferences.applications" },
@@ -72,6 +74,33 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                                     []
                                 ]
                             }
+                        }
+                    },
+                    liveValidSMSCount: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $not: { $in: ["$application_preferences.applications.status", Array.from(ADMITTED_STATUSES)] } },
+                                        {
+                                            $gt: [
+                                                {
+                                                    $size: {
+                                                        $filter: {
+                                                            input: { $ifNull: ["$application_preferences.applications.sms_history", []] },
+                                                            as: "sms",
+                                                            cond: { $gte: ["$$sms.last_date", startOfToday] }
+                                                        }
+                                                    }
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
                         }
                     }
                 }
@@ -356,6 +385,7 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                 markEnteredRegSet: Set<string>;
                 enrolledCount: number;
                 smsCount: number;
+                liveValidSMSCount: number;
                 statuses: Record<string, number>;
                 totalAppCount: number;
             }
@@ -378,6 +408,7 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                     markEnteredRegSet: new Set(),
                     enrolledCount: 0,
                     smsCount: 0,
+                    liveValidSMSCount: 0,
                     statuses: {},
                     totalAppCount: 0
                 };
@@ -401,7 +432,17 @@ export const getFullStatistics = async (req: Request, res: Response) => {
             }
 
             target.smsCount += item.smsSentCount;
+            target.liveValidSMSCount += item.liveValidSMSCount || 0;
         });
+
+
+        /* ============================================================
+           8B. SPECIFIC LIVE SMS STATS (Requested by user)
+           PG-MSC-CS | Self-Finance | Shift-1
+           ============================================================ */
+        const specificProgramKey = "PG-MSC-CS_Self-Finance_Shift-1";
+        const specificLiveStats = statsMap[specificProgramKey] || { liveValidSMSCount: 0 };
+        console.log(`Live Valid SMS Count for ${specificProgramKey}:`, specificLiveStats.liveValidSMSCount);
 
         /* ============================================================
            9. BUILD FINAL PROGRAM DATA WITH PAYMENTS
@@ -431,6 +472,7 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                     enrolled: 0,
                     sms_sent: 0,
                     sms_history_count: 0,
+                    live_valid_sms_count: 0,
                     seats_available: 0,
                     status_breakdown: {}
                 },
@@ -469,6 +511,7 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                     enrolled: enrolledCount,
                     sms_sent: feesMasterSMSMap[key] || 0,
                     sms_history_count: stats.smsCount,
+                    live_valid_sms_count: stats.liveValidSMSCount,
                     seats_available: Math.max(0, sanctionedStrength - enrolledCount),
                     status_breakdown: stats.statuses
                 };
@@ -535,6 +578,7 @@ export const getFullStatistics = async (req: Request, res: Response) => {
                 total_candidates: totalRegistered,
                 global_sms_sent: globalFeesMasterSMSCount,
                 global_sms_history_count: globalSMSCount,
+                global_live_valid_sms_count: Object.values(statsMap).reduce((acc, curr) => acc + curr.liveValidSMSCount, 0),
                 total_payment_records: {
                     online: allOnlinePayments.length,
                     swipe: allSwipePayments.length,
