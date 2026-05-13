@@ -80,7 +80,7 @@ export const sendSms = async (req: Request, res: Response) => {
             const db = mongoose.connection.useDb('admission2026');
             const isPaymentEnabled = (template_identifier === 'admission_spot' || template_identifier === "fee_sms");
 
-            const updateFields: any = { is_payment_enabled: isPaymentEnabled };
+            const updateFields: any = { is_payment_enabled: isPaymentEnabled, shift: shift };
 
             if (isPaymentEnabled) {
                 const expiryDate = new Date();
