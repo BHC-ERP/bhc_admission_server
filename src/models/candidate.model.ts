@@ -528,6 +528,14 @@ const CandidateSchema = new mongoose.Schema({
             }
         }
     ],
+    /* ==================== HOSTEL ==================== */
+    hostel_login_enabled: { type: Boolean, default: false },
+    hostel_status: { 
+        type: String, 
+        enum: ['PENDING', 'SELECTED', 'NOT_SELECTED', 'REJECTED'],
+        default: 'PENDING' 
+    },
+
     /* ==================== METADATA ==================== */
     metadata: {
         version: { type: Number, default: 1 },

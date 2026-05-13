@@ -348,7 +348,7 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
         }
 
         const candidate = await CandidateAdmission.findOne({ registration_number })
-            .select("registration_number personal_details admission_type admission_status academic_year interview_test payment documents application_preferences academic_background")
+            .select("registration_number personal_details admission_type admission_status academic_year interview_test payment documents application_preferences academic_background hostel_login_enabled hostel_status")
             .lean();
 
         if (!candidate) {
@@ -510,7 +510,9 @@ export const getDashboardDataController = async (req: Request, res: Response) =>
                         stream: app.stream,
                         status: app.status
                     }))
-            }
+            },
+            hostel_login_enabled: candidate.hostel_login_enabled || false,
+            hostel_status: candidate.hostel_status || 'PENDING'
         });
 
     } catch (error) {
