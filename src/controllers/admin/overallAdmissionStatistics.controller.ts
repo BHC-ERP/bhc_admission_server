@@ -13,12 +13,11 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
         const academic_year = "2026-2027";
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
-        const ADMITTED_STATUSES = ["ADMITTED", "ADMIT_FINAL", "ADMIT"];
+        const ADMITTED_STATUSES = ["admitted", "admit_final", "admit"];
 
         const admission2026Db = mongoose.connection.useDb("admission2026");
 
         // 1. Prepare independent queries to run concurrently
-        const programsPromise = programsModel.find({}).sort({ program_name: 1, stream: 1, shift: 1 }).lean();
 
         // 2. Aggregate from candidateadmissions
         const candidateStatsPromise = CandidateAdmission.aggregate([
@@ -36,7 +35,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     hod_selection_apps: {
                         $addToSet: {
                             $cond: [
-                                { $in: ["$application_preferences.applications.status", ["HOD_SELECTION", "HOD_SELECTION_INTERVIEW"]] },
+                                { $in: [{ $toLower: "$application_preferences.applications.status" }, ["hod_selection", "hod_selection_interview"]] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -45,7 +44,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     verified_apps: {
                         $addToSet: {
                             $cond: [
-                                { $eq: ["$application_preferences.applications.status", "VERIFIED"] },
+                                { $eq: [{ $toLower: "$application_preferences.applications.status" }, "verified"] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -54,7 +53,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     admitted_apps: {
                         $addToSet: {
                             $cond: [
-                                { $in: ["$application_preferences.applications.status", ADMITTED_STATUSES] },
+                                { $in: [{ $toLower: "$application_preferences.applications.status" }, ADMITTED_STATUSES] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -78,7 +77,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     applied_apps: {
                         $addToSet: {
                             $cond: [
-                                { $ne: ["$application_preferences.applications.status", "Draft"] },
+                                { $ne: [{ $toLower: "$application_preferences.applications.status" }, "draft"] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -87,7 +86,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     draft_apps: {
                         $addToSet: {
                             $cond: [
-                                { $eq: ["$application_preferences.applications.status", "Draft"] },
+                                { $eq: [{ $toLower: "$application_preferences.applications.status" }, "draft"] },
                                 "$application_preferences.applications.application_number",
                                 "$$REMOVE"
                             ]
@@ -187,7 +186,6 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
 
         // Wait for all independent queries
         const [
-            programs,
             candidateStats,
             appliedStats,
             admissionFees,
@@ -195,7 +193,6 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             smsSentStats,
             liveSmsValidApps
         ] = await Promise.all([
-            programsPromise,
             candidateStatsPromise,
             appliedStatsPromise,
             admissionFeesPromise,
@@ -230,13 +227,57 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             paidStatsMap[key].add(m.application_number);
         });
 
-        // 4. Combine results into a unified map
+        // 1. Fetch all unique program combinations present in applications
+        const applicationPrograms = await CandidateAdmission.aggregate([
+            { $match: { academic_year } },
+            { $unwind: "$application_preferences.applications" },
+            {
+                $group: {
+                    _id: {
+                        program_code: "$application_preferences.applications.program_code",
+                        stream: "$application_preferences.applications.stream",
+                        shift: { $ifNull: ["$application_preferences.applications.shift", "Shift-1"] }
+                    }
+                }
+            }
+        ]);
+
+        // 2. Fetch all programs from master list
+        const masterPrograms = await programsModel.find({}).lean();
+
+        // 3. Combine results into a unified map
         const programMap: Record<string, any> = {};
 
-        // Initialize with program info
-        programs.forEach((p: any) => {
+        // Initialize with all combinations found in applications
+        applicationPrograms.forEach(ap => {
+            const { program_code, stream, shift } = ap._id;
+            const key = `${program_code}_${stream}_${shift}`;
+            programMap[key] = {
+                program_name: program_code, // Default to code
+                program_code: program_code,
+                stream: stream,
+                shift: shift,
+                department: "Unknown",
+                sanctioned_strength: 0,
+                applied_set: new Set(),
+                draft_set: new Set(),
+                total_set: new Set(),
+                hod_selection_set: new Set(),
+                verified_set: new Set(),
+                interview_sms_count: 0,
+                sms_sent_count: 0,
+                hostel_sms_count: 0,
+                other_sms_count: 0,
+                live_valid_sms_set: new Set(),
+                admitted_set: new Set()
+            };
+        });
+
+        // Overlay/Initialize with Master Programs (even if they have no applications)
+        masterPrograms.forEach((p: any) => {
             const shift = p.shift || "Shift-1";
             const key = `${p.program_code}_${p.stream}_${shift}`;
+            
             if (!programMap[key]) {
                 programMap[key] = {
                     program_name: p.program_name,
@@ -247,6 +288,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     sanctioned_strength: p.sanctioned_strength || 0,
                     applied_set: new Set(),
                     draft_set: new Set(),
+                    total_set: new Set(),
                     hod_selection_set: new Set(),
                     verified_set: new Set(),
                     interview_sms_count: 0,
@@ -256,6 +298,11 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                     live_valid_sms_set: new Set(),
                     admitted_set: new Set()
                 };
+            } else {
+                // Update metadata for existing app-found programs
+                programMap[key].program_name = p.program_name;
+                programMap[key].department = p.department_name;
+                programMap[key].sanctioned_strength = p.sanctioned_strength || 0;
             }
         });
 
@@ -265,6 +312,7 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             if (programMap[key]) {
                 stat.hod_selection_apps.forEach((app: any) => programMap[key].hod_selection_set.add(app));
                 stat.verified_apps.forEach((app: any) => programMap[key].verified_set.add(app));
+                stat.admitted_apps.forEach((app: any) => programMap[key].admitted_set.add(app));
             }
         });
 
@@ -300,10 +348,16 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
             const key = `${stat._id.program_code}_${stat._id.stream}_${stat._id.shift}`;
             if (programMap[key]) {
                 if (stat.applied_apps) {
-                    stat.applied_apps.forEach((app: any) => programMap[key].applied_set.add(app));
+                    stat.applied_apps.forEach((app: any) => {
+                        programMap[key].applied_set.add(app);
+                        programMap[key].total_set.add(app);
+                    });
                 }
                 if (stat.draft_apps) {
-                    stat.draft_apps.forEach((app: any) => programMap[key].draft_set.add(app));
+                    stat.draft_apps.forEach((app: any) => {
+                        programMap[key].draft_set.add(app);
+                        programMap[key].total_set.add(app);
+                    });
                 }
             }
         });
@@ -319,9 +373,9 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                 shift: p.shift,
                 department: p.department,
                 sanctioned_strength: sanctioned,
-                applied: p.applied_set.size,
+                applied: p.total_set.size - p.draft_set.size,
                 draft: p.draft_set.size,
-                total_applied: p.applied_set.size + p.draft_set.size,
+                total_applied: p.total_set.size,
                 hod_selection: p.hod_selection_set.size,
                 verified: p.verified_set.size,
                 interview_sms: p.interview_sms_count,
@@ -333,7 +387,8 @@ export const getOverallAdmissionStatistics = async (req: Request, res: Response)
                 seats_left: sanctioned - admittedCount
             };
         }).sort((a: any, b: any) =>
-            a.program_name.localeCompare(b.program_name) || a.shift.localeCompare(b.shift)
+            (a.program_name || "").localeCompare(b.program_name || "") || 
+            (a.shift || "Shift-1").localeCompare(b.shift || "Shift-1")
         );
 
         return res.json({

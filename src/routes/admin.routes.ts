@@ -16,8 +16,8 @@ import { backupDatabaseJSON } from "../controllers/admin/backup.controller";
 import { updateCandidateMaster, getCandidateForEdit } from "../controllers/admin/masterADMCandidateEdit.controller";
 import { getAdmittedCommunityReport } from "../controllers/admin/communityReport.controller";
 import { getHostelRequiredAdmittedList, selectCandidateForHostel, syncCandidateFeeDates } from "../controllers/admin/hostelAdmission.controller";
+import { fixAdmissionDates, processSwipePayments } from "../controllers/admin/script.controller";
 import { connectDB } from "../config/database";
-
 
 
 const router = Router();
@@ -1012,5 +1012,9 @@ router.get('/payment/initiate/false', async (req, res) => {
     });
   }
 });
+
+// Script Routes
+router.post("/scripts/fix-admission-dates", fixAdmissionDates);
+router.post("/scripts/process-swipe-payments", processSwipePayments);
 
 export default router;

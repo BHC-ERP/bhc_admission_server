@@ -23,7 +23,9 @@ export const getHostelRequiredAdmittedList = async (req: Request, res: Response)
             { $unwind: "$application_preferences.applications" },
             {
                 $match: {
-                    "application_preferences.applications.status": "ADMITTED"
+                    $expr: {
+                        $eq: [{ $toLower: "$application_preferences.applications.status" }, "admitted"]
+                    }
                 }
             },
             {
@@ -124,7 +126,7 @@ export const syncCandidateFeeDates = async (req: Request, res: Response) => {
             // Try to find in admission_fees (Online)
             const onlinePayment = await admissionFees.findOne({
                 application_number: { $in: [appNo, String(appNo)] },
-                status: "SUCCESS"
+                status: { $regex: /^success$/i }
             });
 
             let transactionDate = null;
@@ -135,7 +137,7 @@ export const syncCandidateFeeDates = async (req: Request, res: Response) => {
                 // Try to find in swipepayments
                 const swipePayment = await swipePayments.findOne({
                     application_number: { $in: [appNo, String(appNo)] },
-                    status: "SWIPE_RECORDED"
+                    status: { $regex: /^swipe_recorded$/i }
                 });
                 if (swipePayment && swipePayment.transaction_date) {
                     transactionDate = swipePayment.transaction_date;
@@ -163,7 +165,7 @@ export const syncCandidateFeeDates = async (req: Request, res: Response) => {
                             }
                         }
                     );
-                    
+
                     if (admissionUpdate.matchedCount > 0) {
                         console.log(`✅ Updated CandidateAdmission for AppNo: ${appNo}`);
                     } else {
