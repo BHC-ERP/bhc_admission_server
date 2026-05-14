@@ -15,9 +15,9 @@ export function formatPaymentDate(input?: string | number | Date): string | null
 
   // Case 3: String input
   else if (typeof input === "string") {
-    // DD/MM/YYYY or DD/MM/YYYY HH:mm:ss
+    // DD/MM/YYYY or DD-MM-YYYY or DD/MM/YYYY HH:mm:ss
     const ddmmyyyy = input.match(
-      /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?$/
+      /^(\d{2})[/-](\d{2})[/-](\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?$/
     );
 
     if (ddmmyyyy) {
