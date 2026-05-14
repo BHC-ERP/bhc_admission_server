@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import CandidateAdmission from "../../models/candidate.model";
 import HostelSelection from "../../models/hostelSelection.model";
+import mongoose from "mongoose";
+import { formatPaymentDate } from "../../utils/dateFormat";
 
 /**
  * @route GET /api/admin/hostel/required-list
@@ -12,17 +14,17 @@ export const getHostelRequiredAdmittedList = async (req: Request, res: Response)
         const academic_year = "2026-2027";
 
         const candidates = await CandidateAdmission.aggregate([
-            { 
-                $match: { 
-                    academic_year, 
-                    "category_and_facilities.facilities.hostel.required": true 
-                } 
+            {
+                $match: {
+                    academic_year,
+                    "category_and_facilities.facilities.hostel.required": true
+                }
             },
             { $unwind: "$application_preferences.applications" },
-            { 
-                $match: { 
-                    "application_preferences.applications.status": "ADMITTED" 
-                } 
+            {
+                $match: {
+                    "application_preferences.applications.status": "ADMITTED"
+                }
             },
             {
                 $lookup: {
@@ -88,6 +90,89 @@ export const selectCandidateForHostel = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error("Hostel Selection Error:", error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
+/**
+ * @route POST /api/admin/hostel/sync-fee-dates
+ * @desc Sync transaction dates from fee_collection to admission2026
+ * @access Admin
+ */
+export const syncCandidateFeeDates = async (req: Request, res: Response) => {
+    try {
+        const admission2026Db = mongoose.connection.useDb("admission2026");
+        const feeCollectionDb = mongoose.connection.useDb("fee_collection");
+
+        const candidateFeesMaster = admission2026Db.collection("candidate_fees_master");
+        const admissionFees = feeCollectionDb.collection("admission_fees");
+        const swipePayments = feeCollectionDb.collection("swipepayments");
+
+        // Fetch all candidates from fees master
+        const candidates = await candidateFeesMaster.find({}).toArray();
+        let updatedCount = 0;
+
+        console.log(`Starting sync for ${candidates.length} candidates...`);
+
+        for (const candidate of candidates) {
+            const appNo = candidate.application_number;
+            if (!appNo) continue;
+
+            // Try to find in admission_fees (Online)
+            const onlinePayment = await admissionFees.findOne({
+                application_number: { $in: [appNo, String(appNo)] },
+                status: "SUCCESS"
+            });
+
+            let transactionDate = null;
+
+            if (onlinePayment && onlinePayment.transaction_date) {
+                transactionDate = onlinePayment.transaction_date;
+            } else {
+                // Try to find in swipepayments
+                const swipePayment = await swipePayments.findOne({
+                    application_number: { $in: [appNo, String(appNo)] },
+                    status: "SWIPE_RECORDED"
+                });
+                if (swipePayment && swipePayment.transaction_date) {
+                    transactionDate = swipePayment.transaction_date;
+                }
+            }
+
+            if (transactionDate) {
+                // 1. Update candidate_fees_master (admission2026 db)
+                await candidateFeesMaster.updateOne(
+                    { _id: candidate._id },
+                    { $set: { transaction_date: transactionDate } }
+                );
+
+                // 2. Update CandidateAdmission (main db)
+                const formattedDate = formatPaymentDate(transactionDate);
+                if (formattedDate) {
+                    await CandidateAdmission.updateOne(
+                        { "application_preferences.applications.application_number": appNo },
+                        {
+                            $set: {
+                                "application_preferences.applications.$.admission_details": {
+                                    admission_date: new Date(formattedDate),
+                                    admit_status: "Yes"
+                                }
+                            }
+                        }
+                    );
+                }
+
+                updatedCount++;
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `Successfully synchronized ${updatedCount} transaction dates`,
+            updatedCount
+        });
+    } catch (error) {
+        console.error("Sync Fee Dates Error:", error);
         return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
