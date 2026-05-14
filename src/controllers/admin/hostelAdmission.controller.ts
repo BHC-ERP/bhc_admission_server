@@ -40,9 +40,12 @@ export const getHostelRequiredAdmittedList = async (req: Request, res: Response)
                     registration_number: 1,
                     application_number: "$application_preferences.applications.application_number",
                     program_name: "$application_preferences.applications.program_name",
+                    stream: "$application_preferences.applications.stream",
+                    shift: "$application_preferences.applications.shift",
                     gender: "$personal_details.gender",
                     phone: "$personal_details.phone",
                     community: "$personal_details.community",
+                    admission_date: "$application_preferences.applications.admission_details.admission_date",
                     hostel_status: { $ifNull: [{ $arrayElemAt: ["$hostel_info.status", 0] }, "PENDING"] }
                 }
             }
@@ -149,7 +152,7 @@ export const syncCandidateFeeDates = async (req: Request, res: Response) => {
                 // 2. Update CandidateAdmission (main db)
                 const formattedDate = formatPaymentDate(transactionDate);
                 if (formattedDate) {
-                    await CandidateAdmission.updateOne(
+                    const admissionUpdate = await CandidateAdmission.updateOne(
                         { "application_preferences.applications.application_number": appNo },
                         {
                             $set: {
@@ -160,6 +163,14 @@ export const syncCandidateFeeDates = async (req: Request, res: Response) => {
                             }
                         }
                     );
+                    
+                    if (admissionUpdate.matchedCount > 0) {
+                        console.log(`✅ Updated CandidateAdmission for AppNo: ${appNo}`);
+                    } else {
+                        console.warn(`⚠️ Could not find CandidateAdmission for AppNo: ${appNo}`);
+                    }
+                } else {
+                    console.warn(`⚠️ Invalid date format for AppNo: ${appNo}, Date: ${transactionDate}`);
                 }
 
                 updatedCount++;
