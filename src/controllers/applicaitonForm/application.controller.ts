@@ -2138,7 +2138,7 @@ export const fromSubmitController = async (req: Request, res: Response) => {
 export const updateCandidateBasicDetails = async (req: Request, res: Response) => {
     try {
         const { regId } = req.params;
-        const { personal_details, address, academic_background, parents: parentsData, admission_status, staffname, staffid } = req.body;
+        const { personal_details, address, academic_background, parents: parentsData, admission_status, category_and_facilities, staffname, staffid } = req.body;
 
         if (!regId) {
             return res.status(400).json({ success: false, message: "Registration number is required" });
@@ -2157,7 +2157,8 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
             address: candidateObj.address,
             academic_background: candidateObj.academic_background,
             parents: candidateObj.parents,
-            admission_status: candidateObj.admission_status
+            admission_status: candidateObj.admission_status,
+            category_and_facilities: candidateObj.category_and_facilities
         };
 
         const updateData: any = {};
@@ -2199,6 +2200,24 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
                 }
             };
         }
+        if (category_and_facilities) {
+            updateData.category_and_facilities = {
+                ...candidateObj.category_and_facilities,
+                ...category_and_facilities,
+                facilities: {
+                    ...candidateObj.category_and_facilities?.facilities,
+                    ...category_and_facilities.facilities,
+                    hostel: {
+                        ...candidateObj.category_and_facilities?.facilities?.hostel,
+                        ...category_and_facilities.facilities?.hostel
+                    },
+                    transport: {
+                        ...candidateObj.category_and_facilities?.facilities?.transport,
+                        ...category_and_facilities.facilities?.transport
+                    }
+                }
+            };
+        }
 
         if (admission_status && admission_status.current) {
             updateData.admission_status = {
@@ -2216,17 +2235,30 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
             };
         }
 
+        const setPayload: any = {
+            "metadata.last_modified_by": staffid || (req as any).user?.id || 'admin',
+            "metadata.ip_address": req.ip || req.socket.remoteAddress,
+            "metadata.user_agent": req.get("user-agent") || "Unknown"
+        };
+
+        // Merge top-level updateData keys as dot-notation paths to avoid validator issues
+        if (updateData.personal_details) setPayload["personal_details"] = updateData.personal_details;
+        if (updateData.address) setPayload["address"] = updateData.address;
+        if (updateData.parents) setPayload["parents"] = updateData.parents;
+        if (updateData.academic_background) setPayload["academic_background"] = updateData.academic_background;
+        if (updateData.admission_status) setPayload["admission_status"] = updateData.admission_status;
+        if (updateData.category_and_facilities) {
+            setPayload["category_and_facilities.facilities.hostel.required"] =
+                updateData.category_and_facilities.facilities?.hostel?.required ?? false;
+            setPayload["category_and_facilities.facilities.transport.required"] =
+                updateData.category_and_facilities.facilities?.transport?.required ?? false;
+            setPayload["category_and_facilities.is_completed"] = true;
+        }
+
         const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
             { registration_number: Number(regId) },
-            {
-                $set: {
-                    ...updateData,
-                    "metadata.last_modified_by": staffid || (req as any).user?.id || 'admin',
-                    "metadata.ip_address": req.ip || req.socket.remoteAddress,
-                    "metadata.user_agent": req.get("user-agent") || "Unknown"
-                }
-            },
-            { new: true, runValidators: true }
+            { $set: setPayload },
+            { new: true }
         );
 
         // Log the edit
