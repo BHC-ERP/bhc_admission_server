@@ -31,7 +31,7 @@ const CandidateSchema = new mongoose.Schema({
         current: {
             type: String,
             enum: ['Draft', 'Applied', 'HOD_SELECTION',
-                'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
+                'HOD_SELECTION_INTERVIEW', 'TRANSFERRED', 'VERIFIED', 'DIRECT_ADMIT',
                 'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL', 'ADMITTED'
             ],
             default: 'Draft'
@@ -412,8 +412,8 @@ const CandidateSchema = new mongoose.Schema({
             status: {
                 type: String,
                 enum: ['Draft', 'Applied', 'HOD_SELECTION',
-                    'HOD_SELECTION_INTERVIEW', 'VERIFIED', 'DIRECT_ADMIT',
-                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL']
+                    'HOD_SELECTION_INTERVIEW', 'TRANSFERRED', 'TRANSFERED', 'VERIFIED', 'DIRECT_ADMIT',
+                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL', 'ADMITTED']
             },
             selected: [{
                 is_other_application: {
@@ -530,10 +530,10 @@ const CandidateSchema = new mongoose.Schema({
     ],
     /* ==================== HOSTEL ==================== */
     hostel_login_enabled: { type: Boolean, default: false },
-    hostel_status: { 
-        type: String, 
+    hostel_status: {
+        type: String,
         enum: ['PENDING', 'SELECTED', 'NOT_SELECTED', 'REJECTED'],
-        default: 'PENDING' 
+        default: 'PENDING'
     },
 
     /* ==================== METADATA ==================== */
