@@ -2,7 +2,7 @@ import { Request, Response, Router } from "express";
 import mongoose from "mongoose";
 import CandidateAdmission from "../models/candidate.model";
 import programsModel from "../models/programs.model";
-import { getApplicationStats } from "../controllers/admin/stats.controller";
+import { getApplicationStats, getFullPaymentStats } from "../controllers/admin/stats.controller";
 import { getProgrammeWiseStats } from "../controllers/admin/program.stats.controller";
 import { getFullStatistics } from "../controllers/admin/full.stats.controller";
 import { getOverallAdmissionStatistics } from "../controllers/admin/overallAdmissionStatistics.controller";
@@ -273,6 +273,8 @@ router.put('/candidates/status/:application_number', async (req, res) => {
       'HOD_SELECTION_INTERVIEW',
       'VERIFIED',
       'SMS_SENT',
+      'TRANSFERRED',  
+      'TRANSFERED',
       'NOT_SELECTED',
       'ADMISSION',
       'ADMIT'
@@ -951,64 +953,188 @@ router.put("/master-candidate-edit/:registrationNumber", updateCandidateMaster);
 
 //check the payment enable false 
 
-router.get('/payment/initiate/false', async (req, res) => {
+router.get("/payment/initiate/false", async (req: Request, res: Response) => {
   try {
-    const admissions = await CandidateAdmission.aggregate([
-      { $unwind: "$application_preferences.applications" },
-      {
-        $match: {
-          "application_preferences.applications.sms_history": { $exists: true, $ne: [] },
-          "application_preferences.applications.sms_history.template_identifier": {
-            $in: ["fee_sms", "admission_spot"]
-          }
-        }
-      },
-      {
-        $project: {
-          application_number: "$application_preferences.applications.application_number",
-        }
-      }
-    ]);
-
-    const applicationNumbers = admissions.map(a => a.application_number);
-
-    if (applicationNumbers.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: "No matching admissions found",
-        data: []
-      });
-    }
-
     const db = mongoose.connection.db;
     if (!db) throw new Error("Database connection not established");
 
-    const updateResult = await db.collection("candidate_fees_master").updateMany(
-      {
-        application_number: { $in: applicationNumbers },
-        status: "PENDING",
-        is_payment_enabled: false
-      },
-      {
-        $set: {
-          is_payment_enabled: true,
-          payment_expiry_date: new Date("2026-05-13T00:00:00.000Z")
+    // ─── Step 1: Fetch all fee master records that need expiry date ───────────
+    const pendingFeeRecords = await db
+      .collection("candidate_fees_master")
+      .find(
+        {
+          is_payment_enabled: false,
+          payment_expiry_date: null,
+        },
+        {
+          projection: {
+            _id: 1,
+            application_number: 1,
+            registration_number: 1,
+            fullName: 1,
+            program_name: 1,
+            total_amount: 1,
+            status: 1,
+          },
         }
-      }
+      )
+      .toArray();
+
+    if (pendingFeeRecords.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No pending fee records without expiry date found.",
+        updatedCount: 0,
+        data: [],
+      });
+    }
+
+    const applicationNumbers = pendingFeeRecords.map((r) => r.application_number);
+
+    // ─── Step 2: Aggregate CandidateAdmission to get last_date from sms_history ─
+    //
+    // Match applications whose application_number is in our list,
+    // and that have a fee_sms or admission_spot SMS entry with a last_date.
+    // Pick the most recent sms_history entry per application_number.
+    const admissionSmsData = await CandidateAdmission.aggregate([
+      // Unwind so we can filter per application
+      { $unwind: "$application_preferences.applications" },
+
+      // Only care about applications in our pending list
+      {
+        $match: {
+          "application_preferences.applications.application_number": {
+            $in: applicationNumbers,
+          },
+        },
+      },
+
+      // Unwind sms_history so we can filter by template and pick last_date
+      {
+        $unwind: {
+          path: "$application_preferences.applications.sms_history",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+
+      // Only sms entries with relevant templates AND a non-null last_date
+      {
+        $match: {
+          "application_preferences.applications.sms_history.template_identifier": {
+            $in: ["fee_sms", "admission_spot"],
+          },
+          "application_preferences.applications.sms_history.last_date": {
+            $exists: true,
+            $ne: null,
+          },
+        },
+      },
+
+      // Sort by sent_at descending so the latest SMS is first
+      {
+        $sort: {
+          "application_preferences.applications.sms_history.sent_at": -1,
+        },
+      },
+
+      // Group by application_number — take the first (latest) last_date
+      {
+        $group: {
+          _id: "$application_preferences.applications.application_number",
+          last_date: {
+            $first:
+              "$application_preferences.applications.sms_history.last_date",
+          },
+          sent_at: {
+            $first:
+              "$application_preferences.applications.sms_history.sent_at",
+          },
+          template_identifier: {
+            $first:
+              "$application_preferences.applications.sms_history.template_identifier",
+          },
+        },
+      },
+    ]);
+
+    // Build a quick lookup map: application_number → last_date
+    const expiryMap = new Map<number, Date>(
+      admissionSmsData
+        .filter((entry) => entry.last_date != null)
+        .map((entry) => [entry._id as number, new Date(entry.last_date)])
     );
+
+    // ─── Step 3: Update candidate_fees_master records that have a resolved date ─
+    const updateResults: {
+      application_number: number;
+      fullName: string;
+      payment_expiry_date: Date | null;
+      updated: boolean;
+      reason?: string;
+    }[] = [];
+
+    const bulkOps: mongoose.mongo.AnyBulkWriteOperation[] = [];
+
+    for (const feeRecord of pendingFeeRecords) {
+      const resolvedExpiry = expiryMap.get(feeRecord.application_number);
+
+      if (!resolvedExpiry) {
+        // No SMS entry found for this application — skip update
+        updateResults.push({
+          application_number: feeRecord.application_number,
+          fullName: feeRecord.fullName,
+          payment_expiry_date: null,
+          updated: false,
+          reason: "No matching SMS history with last_date found in CandidateAdmission",
+        });
+        continue;
+      }
+
+      bulkOps.push({
+        updateOne: {
+          filter: { application_number: feeRecord.application_number },
+          update: {
+            $set: {
+              payment_expiry_date: resolvedExpiry,
+              updatedAt: new Date(),
+            },
+          },
+        },
+      });
+
+      updateResults.push({
+        application_number: feeRecord.application_number,
+        fullName: feeRecord.fullName,
+        payment_expiry_date: resolvedExpiry,
+        updated: true,
+      });
+    }
+
+    // Execute bulk update if any
+    let bulkWriteResult = null;
+    if (bulkOps.length > 0) {
+      bulkWriteResult = await db
+        .collection("candidate_fees_master")
+        .bulkWrite(bulkOps, { ordered: false });
+    }
+
+    // ─── Step 4: Return summary ───────────────────────────────────────────────
+    const updatedRecords = updateResults.filter((r) => r.updated);
+    const skippedRecords = updateResults.filter((r) => !r.updated);
 
     return res.status(200).json({
       success: true,
-      matched: updateResult.matchedCount,
-      updated: updateResult.modifiedCount,
+      message: `Processed ${pendingFeeRecords.length} records. Updated: ${updatedRecords.length}, Skipped: ${skippedRecords.length}.`,
+      updatedCount: bulkWriteResult?.modifiedCount ?? 0,
+      updated: updatedRecords,
+      skipped: skippedRecords,
     });
-
   } catch (error: any) {
-    console.error("Error in /payment/initiate/false:", error);
+    console.error("[payment/initiate/false] Error:", error);
     return res.status(500).json({
       success: false,
-      message: "Internal Server Error",
-      error: error.message
+      message: "Internal server error while processing payment expiry dates.",
+      error: error.message,
     });
   }
 });
@@ -1017,4 +1143,6 @@ router.get('/payment/initiate/false', async (req, res) => {
 router.post("/scripts/fix-admission-dates", fixAdmissionDates);
 router.post("/scripts/process-swipe-payments", processSwipePayments);
 
+
+router.get("/fullstats/count", getFullPaymentStats);
 export default router;
