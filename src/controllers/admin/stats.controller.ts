@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import CandidateAdmission from "../../models/candidate.model";
 import Program from "../../models/programs.model";
 
@@ -439,5 +440,60 @@ export const getApplicationStats = async (req: Request, res: Response) => {
             success: false,
             message: "Server Error"
         });
+    }
+};
+
+export const getFullPaymentStats = async (req: Request, res: Response) => {
+    try {
+        const feeCollectionDb = mongoose.connection.useDb("fee_collection");
+        const admissionFeesCollection = feeCollectionDb.collection("admission_fees");
+        const swipeCollection = feeCollectionDb.collection("swipepayments");
+
+        const onlineCount = await admissionFeesCollection.countDocuments({ status: "SUCCESS" });
+        const swipeCount = await swipeCollection.countDocuments({ status: "SWIPE_RECORDED" });
+
+        const onlineAmountAgg = await admissionFeesCollection.aggregate([
+            { $match: { status: "SUCCESS" } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: { $toDouble: { $ifNull: ["$amount", 0] } } }
+                }
+            }
+        ]).toArray();
+
+        const swipeAmountAgg = await swipeCollection.aggregate([
+            { $match: { status: "SWIPE_RECORDED" } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: { $toDouble: { $ifNull: ["$total_amount", 0] } } }
+                }
+            }
+        ]).toArray();
+
+        const onlineTotalAmount = onlineAmountAgg[0]?.total || 0;
+        const swipeTotalAmount = swipeAmountAgg[0]?.total || 0;
+
+        return res.json({
+            success: true,
+            data: {
+                online: {
+                    count: onlineCount,
+                    total_amount: onlineTotalAmount
+                },
+                swipe: {
+                    count: swipeCount,
+                    total_amount: swipeTotalAmount
+                },
+                total: {
+                    count: onlineCount + swipeCount,
+                    total_amount: onlineTotalAmount + swipeTotalAmount
+                }
+            }
+        });
+    } catch (error: any) {
+        console.error("Get Full Payment Stats Error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Internal Server Error" });
     }
 };
