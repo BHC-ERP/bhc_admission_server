@@ -19,7 +19,7 @@ import { getHostelRequiredAdmittedList, selectCandidateForHostel, syncCandidateF
 import { fixAdmissionDates, processSwipePayments } from "../controllers/admin/script.controller";
 import { connectDB } from "../config/database";
 
-
+// import { Parser } from "json2csv";
 const router = Router();
 
 /**
@@ -273,7 +273,7 @@ router.put('/candidates/status/:application_number', async (req, res) => {
       'HOD_SELECTION_INTERVIEW',
       'VERIFIED',
       'SMS_SENT',
-      'TRANSFERRED',  
+      'TRANSFERRED',
       'TRANSFERED',
       'NOT_SELECTED',
       'ADMISSION',
@@ -1143,6 +1143,209 @@ router.get("/payment/initiate/false", async (req: Request, res: Response) => {
 router.post("/scripts/fix-admission-dates", fixAdmissionDates);
 router.post("/scripts/process-swipe-payments", processSwipePayments);
 
+/**
+ * @route GET /api/admin/admitted-candidates
+ * @desc Get admitted candidates with options to filter by academic year, stream, and program code
+ * @access Admin
+ */
+router.get("/admitted-candidates", async (req: Request, res: Response) => {
+  try {
+    const { academic_year, stream, program_code } = req.query;
 
+    const query: any = {};
+    const elemMatch: any = { status: "ADMITTED" };
+
+    if (stream) {
+      elemMatch.stream = stream;
+    }
+    if (program_code) {
+      elemMatch.program_code = program_code;
+    }
+
+    query["application_preferences.applications"] = { $elemMatch: elemMatch };
+
+    if (academic_year) {
+      query.academic_year = academic_year;
+    }
+
+    const candidates = await CandidateAdmission.find(query);
+
+    return res.status(200).json({
+      success: true,
+      total: candidates.length,
+      data: candidates
+    });
+  } catch (error: any) {
+    console.error("Error fetching admitted candidates:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching admitted candidates",
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/admin/save-roll-numbers
+ * @desc Bulk save roll numbers and section codes for admitted candidates
+ * @access Admin
+ */
+
+// router.post("/save-roll-numbers", async (req: Request, res: Response) => {
+//   try {
+//     const { rollNumbers } = req.body; // Array of { registration_number, roll_number, section }
+
+//     if (!rollNumbers || !Array.isArray(rollNumbers)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "rollNumbers array is required"
+//       });
+//     }
+
+//     const bulkOps = [];
+
+//     for (const item of rollNumbers) {
+//       const { registration_number, roll_number, section } = item;
+
+//       if (!registration_number || !roll_number) {
+//         continue;
+//       }
+
+//       bulkOps.push({
+//         updateOne: {
+//           filter: { registration_number: Number(registration_number) },
+//           update: {
+//             $set: {
+//               roll_number: roll_number,
+//               section: section || "",
+//               "application_preferences.applications.$[elem].admission_details.roll_number": roll_number,
+//               "application_preferences.applications.$[elem].admission_details.section": section || ""
+//             }
+//           },
+//           arrayFilters: [{ "elem.status": "ADMITTED" }]
+//         }
+//       });
+//     }
+
+//     if (bulkOps.length > 0) {
+//       const result = await CandidateAdmission.bulkWrite(bulkOps, { ordered: false });
+//       return res.status(200).json({
+//         success: true,
+//         message: `Successfully updated ${result.modifiedCount} candidates with roll numbers.`,
+//         modifiedCount: result.modifiedCount
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "No records to update.",
+//       modifiedCount: 0
+//     });
+//   } catch (error: any) {
+//     console.error("Error saving roll numbers:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error while saving roll numbers",
+//       error: error.message
+//     });
+//   }
+// });
+
+
+// router.get("/checking/sms_history_morethan_1", async (req: Request, res: Response) => {
+//   try {
+
+//     const query = {
+//       "application_preferences.applications": {
+//         $elemMatch: {
+//           program_code: "UG-BSC-CS",
+//           status: "ADMITTED",
+//           "sms_history.1": { $exists: true }
+//         }
+//       }
+//     };
+
+//     const data = await CandidateAdmission.find(
+//       query,
+//       {
+//         registration_number: 1,
+//         personal_details: 1,
+//         "application_preferences.applications.$": 1
+//       }
+//     );
+
+//     // Convert to CSV Format
+//     const csvData = data.map((item: any) => {
+
+//       const app = item.application_preferences?.applications?.[0];
+
+//       return {
+//         registration_number: item.registration_number,
+//         full_name: item.personal_details?.fullName,
+//         gender: item.personal_details?.gender,
+//         phone: item.personal_details?.phone,
+//         email: item.personal_details?.email,
+
+//         application_number: app?.application_number,
+//         program_code: app?.program_code,
+//         program_name: app?.program_name,
+//         stream: app?.stream,
+//         shift: app?.shift,
+//         status: app?.status,
+//         transaction_id: app?.transaction_id,
+
+//         sms_count: app?.sms_history?.length || 0,
+
+//         first_sms_date: app?.sms_history?.[0]?.sent_at || "",
+//         second_sms_date: app?.sms_history?.[1]?.sent_at || "",
+
+//         first_sms_message: app?.sms_history?.[0]?.message || "",
+//         second_sms_message: app?.sms_history?.[1]?.message || "",
+
+//         admission_date: app?.admission_details?.admission_date || ""
+//       };
+//     });
+
+//     const fields = [
+//       "registration_number",
+//       "full_name",
+//       "gender",
+//       "phone",
+//       "email",
+//       "application_number",
+//       "program_code",
+//       "program_name",
+//       "stream",
+//       "shift",
+//       "status",
+//       "transaction_id",
+//       "sms_count",
+//       "first_sms_date",
+//       "second_sms_date",
+//       "first_sms_message",
+//       "second_sms_message",
+//       "admission_date"
+//     ];
+
+//     const json2csvParser = new Parser({ fields });
+
+//     const csv = json2csvParser.parse(csvData);
+
+//     res.header("Content-Type", "text/csv");
+//     res.attachment("sms_history_morethan_1.csv");
+
+//     return res.send(csv);
+
+//   } catch (error) {
+
+//     console.error("CSV Export Error:", error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error"
+//     });
+
+//   }
+// });
 router.get("/fullstats/count", getFullPaymentStats);
 export default router;

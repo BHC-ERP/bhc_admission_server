@@ -47,6 +47,7 @@ export const getHostelRequiredAdmittedList = async (req: Request, res: Response)
                     gender: "$personal_details.gender",
                     phone: "$personal_details.phone",
                     community: "$personal_details.community",
+                    program_type: "$appliedProgrammeType",
                     admission_date: "$application_preferences.applications.admission_details.admission_date",
                     hostel_status: { $ifNull: [{ $arrayElemAt: ["$hostel_info.status", 0] }, "PENDING"] }
                 }
