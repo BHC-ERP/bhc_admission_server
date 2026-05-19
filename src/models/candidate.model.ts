@@ -19,6 +19,15 @@ const CandidateSchema = new mongoose.Schema({
         default: "2026-2027",
         match: [/^\d{4}-\d{4}$/, "YYYY-YYYY format"]
     },
+    roll_number: {
+        type: String,
+        unique: true,
+        sparse: true,
+        index: true
+    },
+    section: {
+        type: String
+    },
 
     admission_type: {
         type: String,
@@ -454,7 +463,9 @@ const CandidateSchema = new mongoose.Schema({
                     type: String,
                     enum: ['Yes', 'No', 'Pending']
                 },
-                admission_date: Date
+                admission_date: Date,
+                roll_number: String,
+                section: String
             },
             transaction_id: String,
             sms_history: [{
