@@ -17,10 +17,66 @@ import { updateCandidateMaster, getCandidateForEdit } from "../controllers/admin
 import { getAdmittedCommunityReport } from "../controllers/admin/communityReport.controller";
 import { getHostelRequiredAdmittedList, selectCandidateForHostel, syncCandidateFeeDates } from "../controllers/admin/hostelAdmission.controller";
 import { fixAdmissionDates, processSwipePayments } from "../controllers/admin/script.controller";
-import { connectDB } from "../config/database";
+import { getDuplicatePayments, initiateDuplicateRefund } from "../controllers/admin/refund.controller";
 
 // import { Parser } from "json2csv";
 const router = Router();
+
+/**
+ * @route GET /api/admin/refund/duplicates
+ * @desc Get all duplicate application and admission fee payments
+ * @access Admin
+ */
+router.get("/refund/duplicates", getDuplicatePayments);
+
+/**
+ * @route POST /api/admin/refund/initiate
+ * @desc Initiate refund for a duplicate/extra payment
+ * @access Admin
+ */
+router.post("/refund/initiate", initiateDuplicateRefund);
+
+
+/**
+ * @route GET /api/admin/candidate/:registration_number/basic-details
+ * @desc Get basic details (parents, address, bank info) for a candidate
+ * @access Admin
+ */
+router.get("/candidate/:registration_number/basic-details", async (req: Request, res: Response) => {
+  try {
+    const { registration_number } = req.params;
+    const regNo = Number(registration_number);
+
+    if (isNaN(regNo)) {
+      return res.status(400).json({ success: false, message: "Invalid registration number" });
+    }
+
+    const candidate = await CandidateAdmission.findOne(
+      { registration_number: regNo },
+      { 
+        personal_details: 1, 
+        address: 1, 
+        parents: 1, 
+        bank_details: 1 
+      }
+    );
+
+    if (!candidate) {
+      return res.status(404).json({ success: false, message: "Candidate not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: candidate
+    });
+  } catch (error) {
+    console.error("Error fetching candidate basic details:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error"
+    });
+  }
+});
 
 /**
  * @route GET /api/admin/verification/list
