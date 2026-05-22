@@ -48,7 +48,8 @@ import {
   BusRouteController,
   HostelController,
   settingsController,
-  getApplicationsByStatus
+  getApplicationsByStatus,
+  updatePreferenceStatusController
 } from "../controllers/applicaitonForm/application.controller";
 import { getActiveNotifications } from "../controllers/admin/notification.controller";
 
@@ -165,6 +166,9 @@ router.delete("/documents/:registration_number/:documentType", deleteDocumentCon
 router.post("/documents_submit", submitApplicationController);
 router.get("/progress", getProgressController);
 router.get("/data", getFormDataController);
+
+//=========================APPLICATION STATUS UPDATE ROUTES ====================
+router.post("/update-preference-status", updatePreferenceStatusController);
 
 
 //============================Submit Applicaiton=============================

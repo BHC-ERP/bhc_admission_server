@@ -422,8 +422,11 @@ const CandidateSchema = new mongoose.Schema({
                 type: String,
                 enum: ['Draft', 'Applied', 'HOD_SELECTION',
                     'HOD_SELECTION_INTERVIEW', 'TRANSFERRED', 'TRANSFERED', 'VERIFIED', 'DIRECT_ADMIT',
-                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL', 'ADMITTED']
+                    'SMS_SENT', 'NOT_SELECTED', 'ADMISSION', 'DISCONTINUE', 'ADMIT', 'ADMISSION_PAYMENT_PENDING', 'ADMIT_FINAL', 'ADMITTED']
             },
+            status_remark: { type: String, default: '' },
+            status_updated_by: { type: String, default: '' },
+            status_updated_at: { type: Date, default: null },
             selected: [{
                 is_other_application: {
                     type: Boolean,
