@@ -313,10 +313,10 @@ router.post('/refund_payment', async (req, res) => {
       return res.status(404).json({ message: "Transaction not found in payment initiated logs" });
     }
 
-    await mongoose.connection.collection('refund_payments').insertOne({
+    await mongoose.connection.useDb('fee_collection').collection('refund_initiate').insertOne({
       ...auditLog,
       status: "refund_initiated",
-      ccavenue_ref: ccavenue_ref,
+      tracking_id: ccavenue_ref, // mapping for consistency
       bank_ref_no: bank_ref_no,
       refund_amount: refund_amount || auditLog.payment_details?.amount_paid || 0,
       staff_id: staff_id,
@@ -338,10 +338,11 @@ router.post('/refund_payment', async (req, res) => {
 
 router.get('/refund_payments', async (req, res) => {
   try {
-    const data = await mongoose.connection.collection('refund_payments')
+    const data = await mongoose.connection.useDb('fee_collection').collection('refund_initiate')
       .find({})
-      .sort({ moved_at: -1 })
+      .sort({ moved_at: -1, createdAt: -1 })
       .toArray();
+
     return res.status(200).json({ status: "success", data });
   } catch (err: any) {
     console.error("Get refund payments error:", err);
@@ -419,10 +420,10 @@ router.post('/bulk_reconcile', async (req, res) => {
                 const pending = await mongoose.connection.collection('payment_initiated').findOne({ orderId });
                 if (pending) {
                   const { _id, ...insertData } = pending;
-                  await mongoose.connection.collection('refund_payments').insertOne({
+                  await mongoose.connection.useDb('fee_collection').collection('refund_initiate').insertOne({
                     ...insertData,
                     status: "refund_initiated",
-                    ccavenue_ref: currentTx.data.tracking_id,
+                    tracking_id: currentTx.data.tracking_id,
                     bank_ref_no: currentTx.data.bank_ref_no,
                     refund_amount: currentTx.data.amount || pending.amount || 0,
                     staff_id: staff_id,
@@ -524,11 +525,11 @@ router.post('/bulk_reconcile', async (req, res) => {
               });
 
               if (extraTx) {
-                // Duplicate SUCCESSFUL payment -> refund_payments
-                await mongoose.connection.collection('refund_payments').insertOne({
+                // Duplicate SUCCESSFUL payment -> refund_initiate
+                await mongoose.connection.useDb('fee_collection').collection('refund_initiate').insertOne({
                   ...insertData,
                   status: "refund_initiated",
-                  ccavenue_ref: extraTx.data.tracking_id,
+                  tracking_id: extraTx.data.tracking_id,
                   bank_ref_no: extraTx.data.bank_ref_no,
                   refund_amount: extraTx.data.amount || pending.amount || 0,
                   staff_id: staff_id,
