@@ -966,7 +966,11 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
             reason,
             refund_remarks,
             fee_type,
-            staff_id
+            staff_id,
+            staff_name,
+            performed_by,
+            refund_bank_details,
+            refund_amount_detail
         } = req.body;
 
         if (!order_id && !tracking_id) {
@@ -1103,7 +1107,15 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
             amount: txnAmount,
             refund_amount: refund_amount || txnAmount,
             status: "refund_initiated",
-            staff_id: staff_id || "System_Refund",
+            performed_by: performed_by ? {
+                staff_id: performed_by.staff_id,
+                staff_name: performed_by.staff_name,
+                timestamp: new Date()
+            } : {
+                staff_id: staff_id || "System_Refund",
+                staff_name: staff_name || "System",
+                timestamp: new Date()
+            },
             reason: reason || "Duplicate payment refund",
             refund_remarks: refund_remarks || "",
             fee_type: fee_type || (source_collection.includes("admission") ? "admission_fee" : "application_fee"),
@@ -1119,6 +1131,8 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
                     }
                 }
             },
+            refund_bank_details: refund_bank_details || null,
+            refund_amount_detail: refund_amount_detail || null,
             metadata: paymentRecord.metadata || {},
             source_db: dbName,
             source_collection: collectionName,
