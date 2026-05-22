@@ -2303,3 +2303,99 @@ export const updateCandidateBasicDetails = async (req: Request, res: Response) =
         });
     }
 };
+
+
+export const updatePreferenceStatusController = async (req: Request, res: Response) => {
+    try {
+        const { registrationNumber, applicationNumber, status, remark, updatedBy, staffId } = req.body;
+
+        if (!registrationNumber || !applicationNumber || !status) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields",
+            });
+        }
+
+        const db = mongoose.connection.db;
+        if (!db) {
+            return res.status(500).json({ success: false, message: "Database connection not established" });
+        }
+
+        // Update ONLY the specific application preference in CandidateAdmission collection
+        const candidateAdmissionResult = await db.collection('candidateadmissions').updateOne(
+            {
+                registration_number: Number(registrationNumber),
+                "application_preferences.applications.application_number": Number(applicationNumber)
+            },
+            {
+                $set: {
+                    "application_preferences.applications.$.status": status,
+                    "application_preferences.applications.$.status_remark": remark || "",
+                    "application_preferences.applications.$.status_updated_by": updatedBy || "Admin",
+                    "application_preferences.applications.$.status_updated_at": new Date(),
+                    "application_preferences.applications.$.status_updated_staff_id": staffId || "",
+                    "admission_status.current": status,
+                }
+            }
+        );
+
+        if (candidateAdmissionResult.matchedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Candidate or application preference not found"
+            });
+        }
+
+        if (candidateAdmissionResult.modifiedCount === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No changes were made. Status might be the same."
+            });
+        }
+
+        // Update candidate_fees_master collection
+        const feesMasterUpdateResult = await db.collection('candidate_fees_master').updateOne(
+            {
+                registration_number: Number(registrationNumber),
+                application_number: Number(applicationNumber)
+            },
+            {
+                $set: {
+                    status: status,
+                    status_remark: remark || "",
+                    status_updated_by: updatedBy || "Admin",
+                    status_updated_at: new Date(),
+                    status_updated_staff_id: staffId || "",
+                    updatedAt: new Date()
+                }
+            }
+        );
+
+        // Optional: Log if fees master record not found (but don't fail the main operation)
+        if (feesMasterUpdateResult.matchedCount === 0) {
+            console.warn(`Fees master record not found for registration: ${registrationNumber}, application: ${applicationNumber}`);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Preference status updated to ${status} for application number ${applicationNumber}`,
+            data: {
+                registrationNumber: Number(registrationNumber),
+                applicationNumber: Number(applicationNumber),
+                status: status,
+                status_remark: remark || "",
+                status_updated_by: updatedBy || "Admin",
+                status_updated_at: new Date(),
+                feesMasterUpdated: feesMasterUpdateResult.modifiedCount > 0
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Error updating preference status:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};

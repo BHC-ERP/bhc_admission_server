@@ -1206,7 +1206,7 @@ router.post("/scripts/process-swipe-payments", processSwipePayments);
  */
 router.get("/admitted-candidates", async (req: Request, res: Response) => {
   try {
-    const { academic_year, stream, program_code } = req.query;
+    const { academic_year, stream, program_code, shift } = req.query;
 
     const query: any = {};
     const elemMatch: any = { status: "ADMITTED" };
@@ -1216,6 +1216,9 @@ router.get("/admitted-candidates", async (req: Request, res: Response) => {
     }
     if (program_code) {
       elemMatch.program_code = program_code;
+    }
+    if (shift) {
+      elemMatch.shift = shift;
     }
 
     query["application_preferences.applications"] = { $elemMatch: elemMatch };
