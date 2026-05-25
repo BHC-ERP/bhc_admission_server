@@ -13,6 +13,7 @@ import transactionRoutes from "./transaction.routes";
 import automationRoutes from "./automation.routes";
 import smsRoutes from "./sms.routes";
 import transferRoutes from "./transfer.routes";
+import rollnumberRoutes from "./rollnumber.routes";
 
 const router = Router();
 
@@ -30,4 +31,5 @@ router.use("/transactions", transactionRoutes);
 router.use("/automation", automationRoutes);
 router.use("/sms-templates", smsRoutes);
 router.use("/transfer", transferRoutes);
+router.use("/admin/rollnumber", rollnumberRoutes);
 export default router;
