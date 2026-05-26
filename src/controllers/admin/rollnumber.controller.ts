@@ -48,7 +48,7 @@ export const saveRollNumbers = async (req: Request, res: Response) => {
       });
     }
 
-    const bulkOps: mongoose.mongo.AnyBulkWriteOperation[] = [];
+    const bulkOps: any[] = [];
 
     for (const item of rollNumbers) {
       const { registration_number, application_number, roll_number, section } = item;
