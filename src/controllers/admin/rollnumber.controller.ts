@@ -51,15 +51,24 @@ export const saveRollNumbers = async (req: Request, res: Response) => {
     const bulkOps: mongoose.mongo.AnyBulkWriteOperation[] = [];
 
     for (const item of rollNumbers) {
-      const { registration_number, roll_number, section } = item;
+      const { registration_number, application_number, roll_number, section } = item;
 
-      if (!registration_number || !roll_number) {
+      // Fallback to registration_number if application_number is not provided (for backwards compatibility if needed)
+      if (!roll_number || (!application_number && !registration_number)) {
         continue;
       }
 
+      const filter = application_number 
+        ? { "application_preferences.applications.application_number": Number(application_number) }
+        : { registration_number: Number(registration_number) };
+        
+      const arrayFilterCondition = application_number
+        ? { "elem.application_number": Number(application_number) }
+        : { "elem.status": "ADMITTED" };
+
       bulkOps.push({
         updateOne: {
-          filter: { registration_number: Number(registration_number) },
+          filter: filter,
           update: {
             $set: {
               roll_number: roll_number,
@@ -68,7 +77,7 @@ export const saveRollNumbers = async (req: Request, res: Response) => {
               "application_preferences.applications.$[elem].admission_details.section": section || ""
             }
           },
-          arrayFilters: [{ "elem.status": "ADMITTED" }]
+          arrayFilters: [arrayFilterCondition]
         }
       });
     }
