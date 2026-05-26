@@ -313,11 +313,10 @@ export const
                 if (programMap[key]) {
                     stat.hod_selection_apps.forEach((app: any) => programMap[key].hod_selection_set.add(app));
                     stat.verified_apps.forEach((app: any) => programMap[key].verified_set.add(app));
-                    stat.admitted_apps.forEach((app: any) => programMap[key].admitted_set.add(app));
                 }
             });
 
-            // Add Paid stats from the fees master lookup
+            // Add Paid stats from the fees master lookup (source of truth for admitted count)
             Object.entries(paidStatsMap).forEach(([key, appNumbers]) => {
                 if (programMap[key]) {
                     appNumbers.forEach(app => programMap[key].admitted_set.add(app));
