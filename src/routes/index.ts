@@ -14,6 +14,7 @@ import automationRoutes from "./automation.routes";
 import smsRoutes from "./sms.routes";
 import transferRoutes from "./transfer.routes";
 import rollnumberRoutes from "./rollnumber.routes";
+import studentEnrollRoutes from "./studentEnroll.routes";
 
 const router = Router();
 
@@ -32,4 +33,5 @@ router.use("/automation", automationRoutes);
 router.use("/sms-templates", smsRoutes);
 router.use("/transfer", transferRoutes);
 router.use("/admin/rollnumber", rollnumberRoutes);
+router.use("/admin/student-enroll", studentEnrollRoutes);
 export default router;
