@@ -97,15 +97,6 @@ export const
                 }
             ]);
 
-            // 3. Get successful application numbers from fee_collection DB
-            const feeCollectionDb = mongoose.connection.useDb("fee_collection");
-            const admissionFeesPromise = feeCollectionDb.collection("admission_fees").distinct("application_number", {
-                status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
-            });
-            const swipePaymentsPromise = feeCollectionDb.collection("swipepayments").distinct("application_number", {
-                status: { $in: ["SWIPE_RECORDED", "SWIPE_PAID", "SUCCESS"] }
-            });
-
             // Live Count logic: After 6 PM IST, check for expiry > today. Before 6 PM, check for expiry >= today.
             const now = new Date();
             const istHour = parseInt(new Intl.DateTimeFormat('en-GB', {
@@ -189,44 +180,14 @@ export const
             const [
                 candidateStats,
                 appliedStats,
-                admissionFees,
-                swipePayments,
                 smsSentStats,
                 liveSmsValidApps
             ] = await Promise.all([
                 candidateStatsPromise,
                 appliedStatsPromise,
-                admissionFeesPromise,
-                swipePaymentsPromise,
                 smsSentStatsPromise,
                 liveSmsValidPromise
             ]);
-
-            const paidAppNumbers = new Set([
-                ...admissionFees.map(val => Number(val)),
-                ...swipePayments.map(val => Number(val))
-            ].filter(val => val && !isNaN(val)));
-
-            // 3b. Lookup metadata (program, stream, shift) from candidate_fees_master for these paid applications
-            const paidAppArray = Array.from(paidAppNumbers);
-            const paidMetadata = await admission2026Db.collection("candidate_fees_master").find(
-                {
-                    $or: [
-                        { application_number: { $in: paidAppArray } },
-                        { application_number: { $in: paidAppArray.map(String) } }
-                    ]
-                },
-                { projection: { application_number: 1, program_code: 1, stream: 1, shift: 1 } }
-            ).toArray();
-
-            // Group paid counts by the metadata from fees master
-            const paidStatsMap: Record<string, Set<number>> = {};
-            paidMetadata.forEach(m => {
-                const shift = m.shift || "Shift-1";
-                const key = `${m.program_code}_${m.stream}_${shift}`;
-                if (!paidStatsMap[key]) paidStatsMap[key] = new Set();
-                paidStatsMap[key].add(m.application_number);
-            });
 
             // 1. Fetch all unique program combinations present in applications
             const applicationPrograms = await CandidateAdmission.aggregate([
