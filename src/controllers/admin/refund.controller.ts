@@ -269,22 +269,21 @@ export const getDuplicatePayments = async (req: Request, res: Response): Promise
         const rawApplicationPayments: UnifiedPayment[] = [];
         const rawAdmissionPayments: UnifiedPayment[] = [];
 
-        // --- APPLICATION FEES: ccavenue_payment.ccavenue_admissions ---
+        // --- CCAVENUE ADMISSIONS: ccavenue_payment.ccavenue_admissions ---
+        // merchant_param2 empty → Application fee
+        // merchant_param2 has value → Self-Finance admission fee
         try {
             const ccAdmissionsCol = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admissions');
-            // Query only where order_status is Success and merchant_param2 is strictly ""
             const ccAdmissions = await ccAdmissionsCol.find({
-                "data.order_status": "Success",
-                "data.merchant_param2": ""
+                "data.order_status": "Success"
             }).toArray();
 
             ccAdmissions.forEach((doc: any) => {
                 const data = doc.data || {};
+                const isApplicationFee = !data.merchant_param2 || String(data.merchant_param2).trim() === "";
 
-                rawApplicationPayments.push({
+                const payment = {
                     id: String(doc._id),
-                    payment_type: 'application_fee',
-                    source: 'ccavenue_admissions (Application)',
                     order_id: data.order_id || "",
                     tracking_id: data.tracking_id || "",
                     bank_ref_no: data.bank_ref_no || "",
@@ -292,45 +291,31 @@ export const getDuplicatePayments = async (req: Request, res: Response): Promise
                     fullName: data.billing_name || "",
                     phone: data.billing_tel || "",
                     email: data.billing_email || "",
-                    application_number: data.merchant_param4 || "",
-                    registration_number: data.merchant_param1 || "",
                     transaction_date: data.trans_date || doc.createdAt || "",
                     status: data.order_status || "Success",
                     raw: doc
-                });
+                };
+
+                if (isApplicationFee) {
+                    rawApplicationPayments.push({
+                        ...payment,
+                        payment_type: 'application_fee' as const,
+                        source: 'ccavenue_admissions (Application)',
+                        application_number: data.merchant_param4 || "",
+                        registration_number: data.merchant_param1 || "",
+                    });
+                } else {
+                    rawAdmissionPayments.push({
+                        ...payment,
+                        payment_type: 'admission_fee' as const,
+                        source: 'ccavenue_admissions (Self-Finance)',
+                        application_number: data.merchant_param1 || "",
+                        registration_number: data.merchant_param4 || "",
+                    });
+                }
             });
         } catch (e: any) {
             console.warn("Could not query ccavenue_admissions collection:", e.message);
-        }
-
-        // --- ADMISSION FEES SELF-FINANCE: ccavenue_payment.ccavenue_admission (singular!) ---
-        try {
-            const ccAdmissionSelfCol = mongoose.connection.useDb('ccavenue_payment').collection('ccavenue_admission');
-            const ccAdmissionSelf = await ccAdmissionSelfCol.find({ "data.order_status": "Success" }).toArray();
-
-            ccAdmissionSelf.forEach((doc: any) => {
-                const data = doc.data || {};
-
-                rawAdmissionPayments.push({
-                    id: String(doc._id),
-                    payment_type: 'admission_fee',
-                    source: 'ccavenue_admission (Self-Finance)',
-                    order_id: data.order_id || "",
-                    tracking_id: data.tracking_id || "",
-                    bank_ref_no: data.bank_ref_no || "",
-                    amount: parseFloat(data.amount || '0'),
-                    fullName: data.billing_name || "",
-                    phone: data.billing_tel || "",
-                    email: data.billing_email || "",
-                    application_number: data.merchant_param1 || "",
-                    registration_number: data.merchant_param4 || "",
-                    transaction_date: data.trans_date || doc.createdAt || "",
-                    status: data.order_status || "Success",
-                    raw: doc
-                });
-            });
-        } catch (e: any) {
-            console.warn("Could not query ccavenue_admission (Self-Finance) collection:", e.message);
         }
 
         // --- ADMISSION FEES AIDED: ccavenue_payment.ccavenue_admission_fee ---
@@ -406,6 +391,7 @@ export const getDuplicatePayments = async (req: Request, res: Response): Promise
         try {
             const feeSwipeCol = mongoose.connection.useDb('fee_collection').collection('swipepayments');
             const feeSwipes = await feeSwipeCol.find({ "status": { $in: ["SWIPE_RECORDED", "SUCCESS"] } }).toArray();
+            console.log(`[Refund API] Swipe payments found: ${feeSwipes.length}`);
 
             feeSwipes.forEach((doc: any) => {
                 const appNo = doc.application_number ? String(doc.application_number).trim() : "";
@@ -1007,18 +993,24 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
         let collectionName = source_collection;
 
         // Determine correct db and collection
-        if (source_collection.includes("fee_collection") || source_collection === "admission_fees" || source_collection === "swipepayments") {
+        // Order matters: check swipe/ccavenue BEFORE generic fee_collection to handle merged sources
+        if (source_collection.toLowerCase().includes("swipe") || source_collection === "swipepayments") {
             dbName = "fee_collection";
-            if (source_collection.includes("swipepayments") || source_collection === "swipepayments") {
-                collectionName = "swipepayments";
-            } else {
-                collectionName = "admission_fees";
-            }
+            collectionName = "swipepayments";
+        } else if (source_collection.includes("ccavenue_admissions") || source_collection === "ccavenue_admissions") {
+            dbName = "ccavenue_payment";
+            collectionName = "ccavenue_admissions";
         } else if (source_collection.includes("ccavenue_admission_fee") || source_collection === "ccavenue_admission_fee") {
+            dbName = "ccavenue_payment";
             collectionName = "ccavenue_admission_fee";
         } else if (source_collection.includes("ccavenue_admission") || source_collection === "ccavenue_admission") {
+            dbName = "ccavenue_payment";
             collectionName = "ccavenue_admission";
+        } else if (source_collection.includes("fee_collection") || source_collection === "admission_fees") {
+            dbName = "fee_collection";
+            collectionName = "admission_fees";
         } else {
+            dbName = "ccavenue_payment";
             collectionName = "ccavenue_admissions";
         }
 
@@ -1099,6 +1091,27 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
             txnName = paymentRecord.fullName || "Candidate";
         }
 
+        // Extract registration_number and application_number from payment record
+        let registration_number = "";
+        let application_number = "";
+        if (dbName === "ccavenue_payment") {
+            const data = paymentRecord.data || {};
+            const resolvedFeeType = fee_type || (source_collection.includes("admission") ? "admission_fee" : "application_fee");
+            if (source_collection === "ccavenue_admissions" || resolvedFeeType === "application_fee") {
+                // Application fee: merchant_param1 = reg_no, merchant_param4 = app_no
+                registration_number = data.merchant_param1 || "";
+                application_number = data.merchant_param4 || "";
+            } else {
+                // Admission fee: merchant_param4 = reg_no, merchant_param1 = app_no
+                registration_number = data.merchant_param4 || "";
+                application_number = data.merchant_param1 || "";
+            }
+        } else {
+            registration_number = paymentRecord.student_id || paymentRecord.registration_number || "";
+            // For swipe payments, application_number may not exist; fallback to candidate details
+            application_number = paymentRecord.application_number || "";
+        }
+
         // 3. Save to refund collection (refund_initiate in fee_collection)
         const refundPayload = {
             order_id: txnOrderId,
@@ -1120,6 +1133,8 @@ export const initiateDuplicateRefund = async (req: Request, res: Response): Prom
             refund_remarks: refund_remarks || "",
             fee_type: fee_type || (source_collection.includes("admission") ? "admission_fee" : "application_fee"),
             moved_at: new Date(),
+            registration_number,
+            application_number,
             candidateDetails: {
                 personal_details: {
                     basic_info: {
