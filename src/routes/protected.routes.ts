@@ -350,6 +350,29 @@ router.get('/refund_payments', async (req, res) => {
   }
 });
 
+// Update refund status / remark
+router.put('/refund_payment/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remark } = req.body;
+    if (!id) {
+      return res.status(400).json({ message: "Refund id is required" });
+    }
+
+    const updateData: Record<string, any> = { updatedAt: new Date() };
+    if (status) updateData.status = status;
+    if (remark !== undefined) updateData.remark = remark;
+
+    await mongoose.connection.useDb('fee_collection').collection('refund_initiate')
+      .updateOne({ _id: new mongoose.Types.ObjectId(id) }, { $set: updateData });
+
+    return res.status(200).json({ status: "success", message: "Refund updated" });
+  } catch (err: any) {
+    console.error("Update refund error:", err);
+    res.status(500).json({ message: "Error updating refund", error: err.message });
+  }
+});
+
 // Bulk reconcile route
 router.post('/bulk_reconcile', async (req, res) => {
   try {
