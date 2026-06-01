@@ -21,11 +21,25 @@ export const bulkMigrate = async (req: Request, res: Response) => {
 
 export const listEnrolled = async (req: Request, res: Response) => {
   try {
-    const { stream, shift, program_code } = req.query;
+    const { stream, shift, program_code, search } = req.query;
     const filter: any = {};
     if (stream) filter.stream = stream;
     if (shift) filter.shift = shift;
     if (program_code) filter["current_academic.program_code"] = program_code;
+    
+    if (search) {
+      const searchRegex = new RegExp(search as string, "i");
+      const searchNum = Number(search);
+      const searchConditions: any[] = [{ name: searchRegex }];
+      if (!isNaN(searchNum)) {
+        searchConditions.push(
+          { roll_no: searchNum },
+          { application_no: searchNum },
+          { registration_number: searchNum }
+        );
+      }
+      filter.$or = searchConditions;
+    }
 
     const data = await enrolledService.getEnrolledStudents(filter);
     return res.status(200).json({

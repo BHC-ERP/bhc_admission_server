@@ -235,6 +235,10 @@ export function transformToEnrolledStudent(
     academic_info: buildAcademicInfo(candidate),
     current_academic: buildCurrentAcademic(candidate, app, program),
     disciplinary: [],
+    facilities: {
+      hostel: { required: pickBool(candidate.category_and_facilities?.facilities?.hostel?.required) },
+      transport: { required: pickBool(candidate.category_and_facilities?.facilities?.transport?.required) }
+    },
     remarks: "",
     registration_date: (candidate as any).createdAt || null,
     status: "Active",
