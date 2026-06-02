@@ -30,6 +30,7 @@ const EnrolledStudentSchema = new mongoose.Schema({
     physically_challenged: Boolean,
     disability_type: String,
     disability_percent: String,
+    disability_id: String,
     mother_tongue: String,
     family: {
       ex_service: Boolean,

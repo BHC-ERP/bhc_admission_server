@@ -84,3 +84,32 @@ export const saveRollNumbers = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const updateStudent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    
+    delete data._id;
+
+    const updated = await enrolledService.updateStudentById(id as string, data);
+    
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Student not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Student details updated successfully",
+      data: updated,
+    });
+  } catch (error: any) {
+    console.error("Error updating student:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while updating student",
+      error: error.message,
+    });
+  }
+};
+  

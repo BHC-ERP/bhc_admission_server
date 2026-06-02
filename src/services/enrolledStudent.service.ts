@@ -102,3 +102,7 @@ export const saveRollNumbers = async (
 
   return { matched, modified };
 };
+
+export const updateStudentById = async (id: string, data: any) => {
+  return EnrolledStudent.findByIdAndUpdate(id, data, { new: true }).lean();
+};
