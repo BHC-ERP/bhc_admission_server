@@ -80,11 +80,12 @@ export const saveRollNumbers = async (
     shift: string;
   }>
 ) => {
-  let matched = 0;
-  let modified = 0;
+  const changes: Array<{ old: any; new: any }> = [];
 
   for (const item of rollNumbers) {
     if (!item.application_no) continue;
+
+    const oldDoc = await EnrolledStudent.findOne({ application_no: item.application_no }).lean();
 
     const updateData: any = {};
     if (item.roll_number) updateData.roll_no = Number(item.roll_number);
@@ -96,9 +97,17 @@ export const saveRollNumbers = async (
       { $set: updateData }
     );
 
-    if (result.matchedCount > 0) matched++;
-    if (result.modifiedCount > 0) modified++;
+    if (result.modifiedCount > 0) {
+      changes.push({ old: oldDoc, new: { ...oldDoc, ...updateData } });
+    }
   }
 
-  return { matched, modified };
+  return { matched: changes.length, modified: changes.length, changes };
+};
+
+export const updateStudentById = async (id: string, data: any) => {
+  const oldDoc = await EnrolledStudent.findById(id).lean();
+  if (!oldDoc) return null;
+  const newDoc = await EnrolledStudent.findByIdAndUpdate(id, data, { new: true }).lean();
+  return { old: oldDoc, new: newDoc };
 };

@@ -18,6 +18,7 @@ import { getAdmittedCommunityReport } from "../controllers/admin/communityReport
 import { getHostelRequiredAdmittedList, selectCandidateForHostel, syncCandidateFeeDates } from "../controllers/admin/hostelAdmission.controller";
 import { fixAdmissionDates, processSwipePayments } from "../controllers/admin/script.controller";
 import { getDuplicatePayments, initiateDuplicateRefund } from "../controllers/admin/refund.controller";
+import { fetchAdmittedCandidates, saveAdmissionNumbers } from "../controllers/admin/admissionNumber.controller";
 
 // import { Parser } from "json2csv";
 const router = Router();
@@ -1243,6 +1244,20 @@ router.get("/admitted-candidates", async (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * @route GET /api/admin/fetch_admitted_candidates
+ * @desc Get admitted candidates filtered by academic year and stream (for admission number generation)
+ * @access Admin
+ */
+router.get("/fetch_admitted_candidates", fetchAdmittedCandidates);
+
+/**
+ * @route POST /api/admin/save-admission-numbers
+ * @desc Bulk save admission numbers for enrolled students (updates enrolledstudents collection)
+ * @access Admin
+ */
+router.post("/save-admission-numbers", saveAdmissionNumbers);
 
 /**
  * @route POST /api/admin/save-roll-numbers

@@ -30,6 +30,7 @@ const EnrolledStudentSchema = new mongoose.Schema({
     physically_challenged: Boolean,
     disability_type: String,
     disability_percent: String,
+    disability_id: String,
     mother_tongue: String,
     family: {
       ex_service: Boolean,
@@ -116,6 +117,10 @@ const EnrolledStudentSchema = new mongoose.Schema({
     program_type: String
   },
   disciplinary: { type: Array, default: [] },
+  facilities: {
+    hostel: { required: Boolean },
+    transport: { required: Boolean }
+  },
   remarks: String,
   registration_date: Date,
   status: { type: String, default: "Active" }

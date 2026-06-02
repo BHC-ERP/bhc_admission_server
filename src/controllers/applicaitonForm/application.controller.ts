@@ -10,6 +10,7 @@ import subjectModel from "../../models/subject.model";
 import { getSessionUserId } from "../../config/session";
 import CandidateAdmission from "../../models/candidate.model";
 import EditLog from "../../models/audit/EditLog.model";
+import { getChangedData } from "../../utils/diffHelper";
 import mongoose from "mongoose";
 
 // Initialize S3 Client
@@ -71,42 +72,6 @@ const generatePresignedUrl = async (key: string): Promise<string> => {
         Key: key
     });
     return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-};
-
-const getChangedData = (oldObj: any, newObj: any) => {
-    const oldDiff: any = {};
-    const newDiff: any = {};
-    let hasChanges = false;
-
-    for (const key in newObj) {
-        let oldValue = oldObj?.[key];
-        let newValue = newObj[key];
-
-        // Handle case where oldValue or newValue are dates
-        if (oldValue instanceof Date) oldValue = oldValue.toISOString();
-        if (newValue instanceof Date) newValue = newValue.toISOString();
-
-        if (newValue && typeof newValue === 'object' && !Array.isArray(newValue)) {
-            const sub = getChangedData(oldValue || {}, newValue);
-            if (sub.hasChanges) {
-                oldDiff[key] = sub.oldDiff;
-                newDiff[key] = sub.newDiff;
-                hasChanges = true;
-            }
-        } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-            // Handle Case where one is null/undefined and other is empty string (ignoring superficial differences)
-            const oldStr = oldValue === null || oldValue === undefined ? "" : oldValue.toString();
-            const newStr = newValue === null || newValue === undefined ? "" : newValue.toString();
-
-            if (oldStr !== newStr) {
-                oldDiff[key] = oldValue;
-                newDiff[key] = newValue;
-                hasChanges = true;
-            }
-        }
-    }
-
-    return { oldDiff, newDiff, hasChanges };
 };
 
 // ==================== MASTER DATA CONTROLLERS ====================

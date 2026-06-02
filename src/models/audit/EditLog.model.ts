@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IEditLog extends Document {
     registration_number: number;
+    roll_no:number;
     staff_id: string;
     staff_name: string;
     section_edited: string; // e.g., "Basic Details"
@@ -16,6 +17,11 @@ export interface IEditLog extends Document {
 const EditLogSchema = new Schema<IEditLog>(
     {
         registration_number: {
+            type: Number,
+            required: true,
+            index: true
+        },
+            roll_no: {
             type: Number,
             required: true,
             index: true
