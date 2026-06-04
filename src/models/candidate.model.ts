@@ -222,7 +222,8 @@ const CandidateSchema = new mongoose.Schema({
                 marks: {
                     total: Number,
                     max_total: Number,
-                    percentage: Number
+                    percentage: Number,
+                    mark_type: { type: String, enum: ['PERCENTAGE', 'GRADE'] }
                 }
             },
             twelfth: {
@@ -263,6 +264,7 @@ const CandidateSchema = new mongoose.Schema({
                     max_total: Number,
                     percentage: Number,
                     core_percentage: Number,
+                    mark_type: { type: String, enum: ['PERCENTAGE', 'GRADE'] }
                 },
                 subjects: [{
                     name: String,
@@ -298,7 +300,8 @@ const CandidateSchema = new mongoose.Schema({
                         'Third Class',
                         'Pass'
                     ]
-                }
+                },
+                mark_type: { type: String, enum: ['PERCENTAGE', 'GRADE'] }
             },
             part_wise_marks: {
                 part1: { total_cgpa: Number, acquired_cgpa: Number },
