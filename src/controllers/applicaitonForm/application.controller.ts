@@ -1164,10 +1164,10 @@ export const academicBackgroundController = async (req: Request, res: Response) 
             }
         }
 
-        // Validate marks
+        // Validate marks (only when both values are positive)
         if (academicData.school_education?.tenth?.marks) {
             const { total, max_total } = academicData.school_education.tenth.marks;
-            if (total > max_total) {
+            if (total > 0 && max_total > 0 && total > max_total) {
                 return res.status(400).json({
                     message: "Total marks cannot exceed maximum marks",
                     field: "tenth.marks"
@@ -1177,7 +1177,7 @@ export const academicBackgroundController = async (req: Request, res: Response) 
 
         if (academicData.school_education?.twelfth?.marks) {
             const { total, max_total } = academicData.school_education.twelfth.marks;
-            if (total > max_total) {
+            if (total > 0 && max_total > 0 && total > max_total) {
                 return res.status(400).json({
                     message: "Total marks cannot exceed maximum marks",
                     field: "twelfth.marks"
