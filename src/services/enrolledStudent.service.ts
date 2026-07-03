@@ -99,6 +99,19 @@ export const saveRollNumbers = async (
 
     if (result.modifiedCount > 0) {
       changes.push({ old: oldDoc, new: { ...oldDoc, ...updateData } });
+
+      // Sync to heber-erp students collection
+      if (updateData.roll_no) {
+        try {
+          const studentsCol = heberConnection.db!.collection("students");
+          await studentsCol.updateOne(
+            { roll_no: updateData.roll_no },
+            { $set: { ...updateData, updatedAt: new Date() } }
+          );
+        } catch (err) {
+          console.error(`[SYNC_ERROR] Failed to sync roll_no ${updateData.roll_no} to students collection:`, err);
+        }
+      }
     }
   }
 
@@ -109,5 +122,19 @@ export const updateStudentById = async (id: string, data: any) => {
   const oldDoc = await EnrolledStudent.findById(id).lean();
   if (!oldDoc) return null;
   const newDoc = await EnrolledStudent.findByIdAndUpdate(id, data, { new: true }).lean();
+
+  // Sync to heber-erp students collection
+  if (newDoc?.roll_no) {
+    try {
+      const studentsCol = heberConnection.db!.collection("students");
+      await studentsCol.updateOne(
+        { roll_no: newDoc.roll_no },
+        { $set: { ...data, updatedAt: new Date() } }
+      );
+    } catch (err) {
+      console.error(`[SYNC_ERROR] Failed to sync roll_no ${newDoc.roll_no} to students collection:`, err);
+    }
+  }
+
   return { old: oldDoc, new: newDoc };
 };
