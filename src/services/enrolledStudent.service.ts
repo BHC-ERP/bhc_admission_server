@@ -1,6 +1,6 @@
 import CandidateAdmission from "../models/candidate.model";
 import EnrolledStudent from "../models/enrolledStudent.model";
-import { heberConnection } from "../config/heber.db";
+import { heberReady, getHeberDb } from "../config/heber.db";
 import { transformToEnrolledStudent } from "../utils/enrolledStudentTransform";
 
 export const migrateAllAdmittedCandidates = async () => {
@@ -11,7 +11,9 @@ export const migrateAllAdmittedCandidates = async () => {
     "application_preferences.applications": { $elemMatch: { status: "ADMITTED" } },
   }).lean();
 
-  const deptCol = heberConnection.db!.collection("departments");
+  await heberReady;
+  const db = getHeberDb();
+  const deptCol = db?.collection("departments");
 
   const docs: any[] = [];
 
@@ -29,21 +31,23 @@ export const migrateAllAdmittedCandidates = async () => {
     }
 
     let program: any = null;
-    try {
-      const deptDoc = await deptCol.findOne(
-        { "programs.program_id": app.program_code },
-        { projection: { department_code: 1, department_name: 1, "programs.$": 1 } }
-      );
-      if (deptDoc?.programs?.length) {
-        const p = deptDoc.programs[0];
-        program = {
-          department_code: deptDoc.department_code || "",
-          department_name: deptDoc.department_name || "",
-          program_name: p.program_name || "",
-        };
+    if (deptCol) {
+      try {
+        const deptDoc = await deptCol.findOne(
+          { "programs.program_id": app.program_code },
+          { projection: { department_code: 1, department_name: 1, "programs.$": 1 } }
+        );
+        if (deptDoc?.programs?.length) {
+          const p = deptDoc.programs[0];
+          program = {
+            department_code: deptDoc.department_code || "",
+            department_name: deptDoc.department_name || "",
+            program_name: p.program_name || "",
+          };
+        }
+      } catch {
+        // heber_erp lookup failed, proceed without program data
       }
-    } catch {
-      // heber_erp lookup failed, proceed without program data
     }
 
     const doc = transformToEnrolledStudent(candidate, app, program);
@@ -103,11 +107,14 @@ export const saveRollNumbers = async (
       // Sync to heber-erp students collection
       if (updateData.roll_no) {
         try {
-          const studentsCol = heberConnection.db!.collection("students");
-          await studentsCol.updateOne(
-            { roll_no: updateData.roll_no },
-            { $set: { ...updateData, updatedAt: new Date() } }
-          );
+          await heberReady;
+          const db = getHeberDb();
+          if (db) {
+            await db.collection("students").updateOne(
+              { roll_no: updateData.roll_no },
+              { $set: { ...updateData, updatedAt: new Date() } }
+            );
+          }
         } catch (err) {
           console.error(`[SYNC_ERROR] Failed to sync roll_no ${updateData.roll_no} to students collection:`, err);
         }
@@ -126,11 +133,14 @@ export const updateStudentById = async (id: string, data: any) => {
   // Sync to heber-erp students collection
   if (newDoc?.roll_no) {
     try {
-      const studentsCol = heberConnection.db!.collection("students");
-      await studentsCol.updateOne(
-        { roll_no: newDoc.roll_no },
-        { $set: { ...data, updatedAt: new Date() } }
-      );
+      await heberReady;
+      const db = getHeberDb();
+      if (db) {
+        await db.collection("students").updateOne(
+          { roll_no: newDoc.roll_no },
+          { $set: { ...data, updatedAt: new Date() } }
+        );
+      }
     } catch (err) {
       console.error(`[SYNC_ERROR] Failed to sync roll_no ${newDoc.roll_no} to students collection:`, err);
     }
