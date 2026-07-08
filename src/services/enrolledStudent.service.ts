@@ -148,3 +148,14 @@ export const updateStudentById = async (id: string, data: any) => {
 
   return { old: oldDoc, new: newDoc };
 };
+
+export const syncStudentToHeberByRollNo = async (roll_no: number, data: any) => {
+  await heberReady;
+  const db = getHeberDb();
+  if (!db) return false;
+  await db.collection("students").updateOne(
+    { roll_no },
+    { $set: { ...data, updatedAt: new Date() } }
+  );
+  return true;
+};

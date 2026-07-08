@@ -118,8 +118,17 @@ export const updateStudent = async (req: Request, res: Response) => {
     delete data._id;
 
     const result = await enrolledService.updateStudentById(id as string, data);
-    
+
     if (!result) {
+      // Student not found in enrolledstudents — fall back to heber-erp.students using roll_no
+      if (data.roll_no) {
+        await enrolledService.syncStudentToHeberByRollNo(data.roll_no, data);
+        return res.status(200).json({
+          success: true,
+          message: "Student updated in records collection",
+          data: null,
+        });
+      }
       return res.status(404).json({ success: false, message: "Student not found" });
     }
 
