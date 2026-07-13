@@ -343,7 +343,60 @@ router.get('/refund_payments', async (req, res) => {
       .sort({ moved_at: -1, createdAt: -1 })
       .toArray();
 
-    return res.status(200).json({ status: "success", data });
+    const getAppNumber = (payment: any): string => {
+      return payment.application_number ||
+        payment.personal_details?.application_info?.application_number ||
+        payment.candidateDetails?.personal_details?.basic_info?.application_number ||
+        payment.candidateDetails?.application_number ||
+        payment.candidateDetails?.payment_details?.gateway_response?.merchant_param4 ||
+        payment.candidateDetails?.payment_details?.gateway_response?.merchant_param1 ||
+        '';
+    };
+
+    const appNumbers = data.map(payment => {
+      const appNo = getAppNumber(payment);
+      return appNo ? String(appNo).trim() : null;
+    }).filter(Boolean);
+
+    const feesMasterMap = new Map();
+    if (appNumbers.length > 0) {
+      try {
+        const db = mongoose.connection.useDb('admission2026');
+        const appNumbersAsNumbers = appNumbers.map(Number).filter(n => !isNaN(n));
+        const records = await db.collection('candidate_fees_master').find({
+          $or: [
+            { application_number: { $in: appNumbers } },
+            { application_number: { $in: appNumbersAsNumbers } }
+          ]
+        }, {
+          projection: { application_number: 1, program_name: 1, program_code: 1 }
+        }).toArray();
+
+        records.forEach((rec: any) => {
+          if (rec.application_number !== undefined && rec.application_number !== null) {
+            feesMasterMap.set(String(rec.application_number).trim(), {
+              program_name: rec.program_name,
+              program_code: rec.program_code
+            });
+          }
+        });
+      } catch (err: any) {
+        console.warn("Could not query candidate_fees_master in GET /refund_payments:", err.message);
+      }
+    }
+
+    const enrichedData = data.map((payment: any) => {
+      const appNo = getAppNumber(payment);
+      const appNoStr = appNo ? String(appNo).trim() : '';
+      const matched = feesMasterMap.get(appNoStr) || {};
+      return {
+        ...payment,
+        program_name: matched.program_name || null,
+        program_code: matched.program_code || null
+      };
+    });
+
+    return res.status(200).json({ status: "success", data: enrichedData });
   } catch (err: any) {
     console.error("Get refund payments error:", err);
     res.status(500).json({ message: "Error fetching refund payments", error: err.message });
