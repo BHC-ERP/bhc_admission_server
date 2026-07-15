@@ -2404,6 +2404,8 @@ export const updatePreferenceStatusController = async (req: Request, res: Respon
                     const enrolledData = transformToEnrolledStudent(candidate, admittedApp, program);
                     enrolledData.roll_no = null;
                     enrolledData.admission_number = null;
+                    enrolledData.status = status === "Discontinued" ? "Discontinued" : "Active";
+                    enrolledData.remarks = remark || "";
 
                     await EnrolledStudent.updateOne(
                         { application_no: Number(applicationNumber) },
