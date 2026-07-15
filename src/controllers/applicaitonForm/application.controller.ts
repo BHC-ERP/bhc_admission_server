@@ -12,6 +12,9 @@ import CandidateAdmission from "../../models/candidate.model";
 import EditLog from "../../models/audit/EditLog.model";
 import { getChangedData } from "../../utils/diffHelper";
 import mongoose from "mongoose";
+import EnrolledStudent from "../../models/enrolledStudent.model";
+import { transformToEnrolledStudent } from "../../utils/enrolledStudentTransform";
+import { heberReady, getHeberDb } from "../../config/heber.db";
 
 // Initialize S3 Client
 const s3Client = new S3Client({
@@ -2344,7 +2347,7 @@ export const updatePreferenceStatusController = async (req: Request, res: Respon
         // Update student collection in heber-erp database
         try {
             const heberErpDb = mongoose.connection.useDb('heber-erp');
-            const studentUpdateResult = await heberErpDb.collection('student').updateOne(
+            const studentUpdateResult = await heberErpDb.collection('students').updateOne(
                 {
                     application_no: Number(applicationNumber)
                 },
@@ -2365,6 +2368,52 @@ export const updatePreferenceStatusController = async (req: Request, res: Respon
             }
         } catch (studentError) {
             console.error(`Failed to update student record in heber-erp for application number: ${applicationNumber}`, studentError);
+        }
+
+        // Sync to enrolledstudents collection
+        try {
+            const candidate = await CandidateAdmission.findOne({ registration_number: Number(registrationNumber) }).lean();
+            if (candidate) {
+                const admittedApp = candidate.application_preferences?.applications?.find(
+                    (a: any) => a.application_number === Number(applicationNumber)
+                );
+
+                if (admittedApp) {
+                    let program: any = null;
+                    try {
+                        await heberReady;
+                        const heberDb = getHeberDb();
+                        if (heberDb) {
+                            const deptDoc = await heberDb.collection("departments").findOne(
+                                { "programs.program_id": admittedApp.program_code },
+                                { projection: { department_code: 1, department_name: 1, "programs.$": 1 } }
+                            );
+                            if (deptDoc?.programs?.length) {
+                                const p = deptDoc.programs[0];
+                                program = {
+                                    department_code: deptDoc.department_code || "",
+                                    department_name: deptDoc.department_name || "",
+                                    program_name: p.program_name || "",
+                                };
+                            }
+                        }
+                    } catch {
+                        // heber_erp lookup failed, proceed without program data
+                    }
+
+                    const enrolledData = transformToEnrolledStudent(candidate, admittedApp, program);
+                    enrolledData.roll_no = null;
+                    enrolledData.admission_number = null;
+
+                    await EnrolledStudent.updateOne(
+                        { application_no: Number(applicationNumber) },
+                        { $set: enrolledData },
+                        { upsert: true }
+                    );
+                }
+            }
+        } catch (enrollError) {
+            console.error(`Failed to sync to enrolledstudents for application: ${applicationNumber}:`, enrollError);
         }
 
         return res.status(200).json({
