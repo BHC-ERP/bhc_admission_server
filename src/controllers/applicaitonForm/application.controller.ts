@@ -2341,6 +2341,32 @@ export const updatePreferenceStatusController = async (req: Request, res: Respon
             console.warn(`Fees master record not found for registration: ${registrationNumber}, application: ${applicationNumber}`);
         }
 
+        // Update student collection in heber-erp database
+        try {
+            const heberErpDb = mongoose.connection.useDb('heber-erp');
+            const studentUpdateResult = await heberErpDb.collection('student').updateOne(
+                {
+                    application_no: Number(applicationNumber)
+                },
+                {
+                    $set: {
+                        status: status,
+                        status_remark: remark || "",
+                        status_updated_by: updatedBy || "Admin",
+                        status_updated_at: new Date(),
+                        status_updated_staff_id: staffId || "",
+                        updatedAt: new Date()
+                    }
+                }
+            );
+
+            if (studentUpdateResult.matchedCount === 0) {
+                console.warn(`Student record not found in heber-erp for application number: ${applicationNumber}`);
+            }
+        } catch (studentError) {
+            console.error(`Failed to update student record in heber-erp for application number: ${applicationNumber}`, studentError);
+        }
+
         return res.status(200).json({
             success: true,
             message: `Preference status updated to ${status} for application number ${applicationNumber}`,
