@@ -515,11 +515,11 @@ router.put('/candidates/status/:application_number', async (req, res) => {
       return app;
     });
 
-    const updatedCandidate = await CandidateAdmission.findByIdAndUpdate(
-      candidate._id,
+    const updatedCandidate = await CandidateAdmission.findOneAndUpdate(
+      { "application_preferences.applications.application_number": appNoToSearch },
       {
         $set: {
-          'application_preferences.applications': updatedApplications,
+          [`application_preferences.applications.${applicationIndex}`]: updatedApplications[applicationIndex],
           'admission_status.current': status,
           updatedAt: currentDate
         }
