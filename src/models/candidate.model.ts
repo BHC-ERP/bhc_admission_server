@@ -575,6 +575,8 @@ CandidateSchema.index({ 'personal_details.phone': 1 });
 CandidateSchema.index({ 'personal_details.aadharNumber': 1 });
 CandidateSchema.index({ registration_number: 1 });
 CandidateSchema.index({ 'admission_status.current': 1 });
+CandidateSchema.index({ 'application_preferences.applications.status': 1 });
+CandidateSchema.index({ 'application_preferences.applications.application_number': 1 });
 CandidateSchema.index({ createdAt: -1 });
 
 

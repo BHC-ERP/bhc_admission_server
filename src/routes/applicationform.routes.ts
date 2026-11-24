@@ -94,12 +94,12 @@ router.get("/dashboard-data/:registration_number", getDashboardDataController);
 router.get("/candidate/:registration_number", getcandidatedata);
 
 // ====================GET APPLICATION FOR ADMISSION TEAM FORM ROUTES ====================
-router.get("/hod-selection/all/", getAllHODSelectionApplications);
-router.get("/verified-list/all/", getAllVerifySelectionApplications);
-router.get("/sms-sent-list/all/", getAllSMSSentApplications);
-router.get("/admitted-list/all/", getAllAdmittedApplications);
+router.get(["/hod-selection/all", "/hod-selection/all/"], getAllHODSelectionApplications);
+router.get(["/verified-list/all", "/verified-list/all/"], getAllVerifySelectionApplications);
+router.get(["/sms-sent-list/all", "/sms-sent-list/all/"], getAllSMSSentApplications);
+router.get(["/admitted-list/all", "/admitted-list/all/"], getAllAdmittedApplications);
 router.get("/status/:status", getApplicationsByStatus);
-router.get("/all", getAllApplications);
+router.get(["/all", "/all/"], getAllApplications);
 
 
 // ====================GET APPLICATION FORM ROUTES ====================
